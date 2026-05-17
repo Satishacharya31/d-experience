@@ -82,9 +82,9 @@ export function CLI() {
 
     if (c === "help") HELP.forEach((t) => out.push({ kind: "out", text: t }));
     else if (c === "ls projects" || c === "ls") {
-      out.push({ kind: "out", text: "total " + PROJECTS.length });
-      PROJECTS.forEach((p) =>
-        out.push({ kind: "out", text: `drwxr-xr-x  satish  ${p.name.padEnd(18)} ${p.desc}` }),
+      out.push({ kind: "out", text: "total " + projects.length });
+      projects.forEach((p: ProjectLite) =>
+        out.push({ kind: "out", text: `drwxr-xr-x  satish  ${p.name.padEnd(18)} ${p.desc}${p.url ? "  → " + p.url : ""}` }),
       );
     } else if (c === "cat about.txt" || c === "about") {
       ABOUT.forEach((t) => out.push({ kind: "out", text: t }));
