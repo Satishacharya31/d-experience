@@ -35,8 +35,27 @@ export function CLI() {
   const [stack, setStack] = useState<string[]>([]);
   const [cursor, setCursor] = useState(-1);
   const [open, setOpen] = useState(true);
+  const [projects, setProjects] = useState<ProjectLite[]>(FALLBACK_PROJECTS);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase
+      .from("projects")
+      .select("slug,title,description,url")
+      .order("sort_order", { ascending: true })
+      .then(({ data }) => {
+        if (data && data.length) {
+          setProjects(
+            data.map((d) => ({
+              name: d.slug,
+              desc: d.title + (d.description ? " — " + d.description : ""),
+              url: d.url,
+            })),
+          );
+        }
+      });
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
