@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 type Line = { kind: "in" | "out" | "err" | "raw"; text: string };
 
-const PROJECTS = [
-  { name: "neural-canvas", desc: "GPU-accelerated drawing surface in WGSL" },
-  { name: "shader-garden", desc: "Procedural flora rendered in real-time GLSL" },
-  { name: "tcp-tomograph", desc: "Live packet visualizer over WebSockets" },
-  { name: "lattice-os", desc: "Tiling window manager experiment in Rust" },
-  { name: "drift-engine", desc: "2D physics + particle playground" },
+type ProjectLite = { name: string; desc: string; url: string | null };
+
+const FALLBACK_PROJECTS: ProjectLite[] = [
+  { name: "the-lab", desc: "this site — WebGL terminal portfolio", url: null },
 ];
 
 const ABOUT = [
@@ -36,8 +35,27 @@ export function CLI() {
   const [stack, setStack] = useState<string[]>([]);
   const [cursor, setCursor] = useState(-1);
   const [open, setOpen] = useState(true);
+  const [projects, setProjects] = useState<ProjectLite[]>(FALLBACK_PROJECTS);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase
+      .from("projects")
+      .select("slug,title,description,url")
+      .order("sort_order", { ascending: true })
+      .then(({ data }) => {
+        if (data && data.length) {
+          setProjects(
+            data.map((d) => ({
+              name: d.slug,
+              desc: d.title + (d.description ? " — " + d.description : ""),
+              url: d.url,
+            })),
+          );
+        }
+      });
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -64,9 +82,9 @@ export function CLI() {
 
     if (c === "help") HELP.forEach((t) => out.push({ kind: "out", text: t }));
     else if (c === "ls projects" || c === "ls") {
-      out.push({ kind: "out", text: "total " + PROJECTS.length });
-      PROJECTS.forEach((p) =>
-        out.push({ kind: "out", text: `drwxr-xr-x  satish  ${p.name.padEnd(18)} ${p.desc}` }),
+      out.push({ kind: "out", text: "total " + projects.length });
+      projects.forEach((p: ProjectLite) =>
+        out.push({ kind: "out", text: `drwxr-xr-x  satish  ${p.name.padEnd(18)} ${p.desc}${p.url ? "  → " + p.url : ""}` }),
       );
     } else if (c === "cat about.txt" || c === "about") {
       ABOUT.forEach((t) => out.push({ kind: "out", text: t }));
