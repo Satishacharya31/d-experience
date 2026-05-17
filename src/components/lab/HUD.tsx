@@ -76,7 +76,7 @@ export function HUD() {
       {/* Bottom-left: brand */}
       <div className="fixed bottom-4 left-4 md:bottom-6 md:left-6 z-20 text-[10px] md:text-xs text-terminal-dim font-mono pointer-events-none">
         <div>SATISH // THE_LAB</div>
-        <div>v0.1.0-alpha · build {(Date.now() % 9999).toString().padStart(4, "0")}</div>
+        <div suppressHydrationWarning>v0.1.0-alpha · build {hex ? (parseInt(hex.slice(-4), 16) % 9999).toString().padStart(4, "0") : "0000"}</div>
       </div>
 
       {/* Corner brackets */}
