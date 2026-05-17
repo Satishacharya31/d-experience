@@ -21,6 +21,8 @@ dist-ssr
 .dev.vars
 
 # Editor directories and files
+.vercel/
+.vercel
 .vscode/*
 !.vscode/extensions.json
 .idea
