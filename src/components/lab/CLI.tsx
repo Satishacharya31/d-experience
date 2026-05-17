@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 type Line = { kind: "in" | "out" | "err" | "raw"; text: string };
 
-const PROJECTS = [
-  { name: "neural-canvas", desc: "GPU-accelerated drawing surface in WGSL" },
-  { name: "shader-garden", desc: "Procedural flora rendered in real-time GLSL" },
-  { name: "tcp-tomograph", desc: "Live packet visualizer over WebSockets" },
-  { name: "lattice-os", desc: "Tiling window manager experiment in Rust" },
-  { name: "drift-engine", desc: "2D physics + particle playground" },
+type ProjectLite = { name: string; desc: string; url: string | null };
+
+const FALLBACK_PROJECTS: ProjectLite[] = [
+  { name: "the-lab", desc: "this site — WebGL terminal portfolio", url: null },
 ];
 
 const ABOUT = [
