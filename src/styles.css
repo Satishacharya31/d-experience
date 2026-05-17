@@ -62,9 +62,16 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
+  --radius: 0.125rem;
+  --background: oklch(0.13 0.01 160);
+  --foreground: oklch(0.92 0.18 155);
+  --terminal-green: oklch(0.88 0.22 145);
+  --terminal-amber: oklch(0.85 0.18 80);
+  --terminal-cyan: oklch(0.85 0.16 200);
+  --terminal-dim: oklch(0.45 0.08 155);
+  --grid-line: oklch(0.92 0.18 155 / 0.08);
+  --scanline: oklch(0.92 0.18 155 / 0.04);
+  --font-mono: "JetBrains Mono", "Fira Code", "Courier New", monospace;
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.129 0.042 264.695);
   --popover: oklch(1 0 0);
