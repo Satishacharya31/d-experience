@@ -64,7 +64,7 @@ export default async function (req, res) {
       duplex: body ? 'half' : undefined
     });
 
-    const fetchRes = await worker.default.fetch(fetchReq, process.env || {}, {
+    const fetchRes = await worker.fetch(fetchReq, process.env || {}, {
       waitUntil: () => {},
       passThroughOnException: () => {}
     });
