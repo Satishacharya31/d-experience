@@ -52,10 +52,10 @@ function Player({
 
     // ── Input: keyboard + touch joystick ──
     let dx = 0, dz = 0;
-    if (keys.current.w) dz -= 1;
-    if (keys.current.s) dz += 1;
-    if (keys.current.a) dx -= 1;
-    if (keys.current.d) dx += 1;
+    if (keys.current.w) dz += 1;
+    if (keys.current.s) dz -= 1;
+    if (keys.current.a) dx += 1;
+    if (keys.current.d) dx -= 1;
 
     // Touch joystick override/blend
     if (touchJoy.current.x !== 0 || touchJoy.current.y !== 0) {
@@ -150,13 +150,12 @@ function Player({
     }
   });
 
-  // ── Mouse look (pointer lock & drag) ──
+  // ── Mouse look (drag only) ──
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
-      if (document.pointerLockElement) {
-        yaw.current -= e.movementX * 0.0035;
-      } else if ((e.buttons & 1) !== 0) {
-        yaw.current -= e.movementX * 0.0035;
+      // Only rotate camera when dragging (left mouse button held)
+      if ((e.buttons & 1) !== 0) {
+        yaw.current -= e.movementX * 0.004;
       }
     };
     window.addEventListener("pointermove", onMove);
@@ -188,7 +187,6 @@ export function VoxelWorld({
   const playerPos = useRef(new THREE.Vector3(0, 0, 0));
   const touchJoy = useRef({ x: 0, y: 0 });
   const [isTouch, setIsTouch] = useState(false);
-  const [isLocked, setIsLocked] = useState(false);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
 
   // Detect touch device
@@ -214,18 +212,7 @@ export function VoxelWorld({
     return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
   }, []);
 
-  // ── Pointer lock ──
-  useEffect(() => {
-    const onChange = () => setIsLocked(!!document.pointerLockElement);
-    document.addEventListener("pointerlockchange", onChange);
-    return () => document.removeEventListener("pointerlockchange", onChange);
-  }, []);
 
-  const handleCanvasClick = useCallback(() => {
-    if (!document.pointerLockElement && canvasWrapRef.current) {
-      canvasWrapRef.current.requestPointerLock();
-    }
-  }, []);
 
   // ── Quest: zone visit ──
   useEffect(() => {
@@ -277,7 +264,7 @@ export function VoxelWorld({
 
   return (
     <>
-      <div ref={canvasWrapRef} className="fixed inset-0 z-0" onClick={handleCanvasClick}>
+      <div ref={canvasWrapRef} className="fixed inset-0 z-0" style={{ cursor: 'grab' }} onMouseDown={(e) => { (e.currentTarget as HTMLDivElement).style.cursor = 'grabbing'; }} onMouseUp={(e) => { (e.currentTarget as HTMLDivElement).style.cursor = 'grab'; }}>
         <Canvas shadows camera={{ position: [0, 6, 10], fov: 60 }} dpr={[1, 2]}>
           <color attach="background" args={["#04070a"]} />
           <fog attach="fog" args={["#04070a", 30, 90]} />
@@ -309,15 +296,14 @@ export function VoxelWorld({
           </Suspense>
         </Canvas>
 
-        {/* Pointer Lock indicator */}
-        {!isLocked && !isTouch && booted && !cliOpen && !isPanelOpen && !levelUpActive && (
+        {/* Drag hint */}
+        {!isTouch && booted && !cliOpen && !isPanelOpen && !levelUpActive && (
           <div
             style={{
               position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              bottom: 16,
+              left: "50%",
+              transform: "translateX(-50%)",
               pointerEvents: "none",
               zIndex: 5,
             }}
@@ -326,20 +312,17 @@ export function VoxelWorld({
               style={{
                 fontSize: 10,
                 fontFamily: "monospace",
-                color: "rgba(0,255,136,0.35)",
-                letterSpacing: "0.2em",
+                color: "rgba(0,255,136,0.3)",
+                letterSpacing: "0.15em",
                 textAlign: "center",
-                padding: "10px 20px",
-                border: "1px solid rgba(0,255,136,0.12)",
-                background: "rgba(4,7,10,0.6)",
+                padding: "6px 16px",
+                border: "1px solid rgba(0,255,136,0.08)",
+                background: "rgba(4,7,10,0.5)",
                 backdropFilter: "blur(4px)",
                 userSelect: "none",
-                animation: "pulse 2.5s ease-in-out infinite",
               }}
             >
-              CLICK TO ENGAGE HEADS-UP VIEW
-              <br />
-              <span style={{ opacity: 0.5 }}>ESC to release mouse</span>
+              WASD / ARROWS TO MOVE · DRAG TO LOOK
             </div>
           </div>
         )}
