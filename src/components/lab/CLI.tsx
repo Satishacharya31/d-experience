@@ -170,9 +170,7 @@ export function CLI() {
 
         <div className="flex items-center gap-2 px-4 py-3 bg-background/80 backdrop-blur-md border border-primary text-glow"
           style={{ boxShadow: "0 0 24px oklch(0.88 0.22 145 / 0.3)" }}>
-          <span className="text-primary text-xs md:text-sm font-mono shrink-0">
-            operator@satish.com.np:<span className="text-accent">~</span>$
-          </span>
+          <span className="text-primary text-xs md:text-sm font-mono shrink-0">{"operator@satish.com.np:"}<span className="text-accent">{"~"}</span>{"$"}</span>
           <input
             ref={inputRef}
             value={input}
