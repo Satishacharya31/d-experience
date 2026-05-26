@@ -40,6 +40,7 @@ function Player({
   const group = useRef<THREE.Group | null>(null);
   const moving = useRef(false);
   const velY = useRef(0);
+  const camYaw = useRef(0);         // camera orbit direction (radians)
   const charYaw = useRef(0);        // character facing direction (radians)
   const pos = useRef(new THREE.Vector3(0, 0, 0));
   const camTarget = useRef(new THREE.Vector3());
@@ -54,8 +55,8 @@ function Player({
     const d = Math.min(delta, 0.05);
 
     // ── Input: keyboard + touch joystick ──
-    // inputZ: +1 = forward (W), -1 = backward (S) relative to character
-    // inputX: +1 = strafe right (D), -1 = strafe left (A) relative to character
+    // inputZ: +1 = forward (W), -1 = backward (S) relative to camera
+    // inputX: +1 = strafe right (D), -1 = strafe left (A) relative to camera
     let inputX = 0, inputZ = 0;
     if (keys.current.w) inputZ += 1;   // forward
     if (keys.current.s) inputZ -= 1;   // backward
@@ -76,24 +77,30 @@ function Player({
       const nx = inputX / inputLen;
       const nz = inputZ / inputLen;
 
-      // Compute forward and right vectors from character yaw
-      const fwdX = Math.sin(charYaw.current);
-      const fwdZ = Math.cos(charYaw.current);
-      const rightX = Math.cos(charYaw.current);
-      const rightZ = -Math.sin(charYaw.current);
+      // Compute camera forward and right vectors relative to camYaw
+      const fwdX = Math.sin(camYaw.current);
+      const fwdZ = Math.cos(camYaw.current);
+      const rightX = Math.cos(camYaw.current);
+      const rightZ = -Math.sin(camYaw.current);
 
-      // World-space movement = forward * inputZ + right * inputX
+      // World-space movement relative to camera perspective
       const worldMoveX = fwdX * nz + rightX * nx;
       const worldMoveZ = fwdZ * nz + rightZ * nx;
 
       pos.current.x += worldMoveX * SPEED * d;
       pos.current.z += worldMoveZ * SPEED * d;
 
+      // Smoothly rotate the character model to face the direction of movement
+      const targetAngle = Math.atan2(worldMoveX, worldMoveZ);
+      let diff = targetAngle - charYaw.current;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      charYaw.current += diff * Math.min(1, d * 12); // smooth turn speed
+
       // Update walk time for camera bob
       walkTime.current += d * 9;
     }
 
-    // Character model always faces the charYaw direction
+    // Character model visually faces the smoothly lerped charYaw direction
     if (group.current) {
       group.current.rotation.y = charYaw.current;
     }
@@ -133,20 +140,20 @@ function Player({
     if (group.current) group.current.position.copy(pos.current);
     playerPos.current.copy(pos.current);
 
-    // ── Camera (3rd-person, always behind character) ──
+    // ── Camera (3rd-person, orbits player based on camYaw) ──
     const camDist = 10;
     const camHeight = 5.5;
     // Camera bob when walking
     const bobY = moving.current ? Math.sin(walkTime.current) * 0.06 : 0;
     const bobX = moving.current ? Math.cos(walkTime.current * 0.5) * 0.03 : 0;
 
-    // Camera is positioned BEHIND the character (opposite of forward direction)
+    // Position camera BEHIND the player relative to the camera orbit yaw
     camDesired.current.set(
-      pos.current.x - Math.sin(charYaw.current) * camDist + bobX,
+      pos.current.x - Math.sin(camYaw.current) * camDist + bobX,
       pos.current.y + camHeight + bobY,
-      pos.current.z - Math.cos(charYaw.current) * camDist,
+      pos.current.z - Math.cos(camYaw.current) * camDist,
     );
-    camera.position.lerp(camDesired.current, Math.min(1, d * 5));
+    camera.position.lerp(camDesired.current, Math.min(1, d * 8)); // smooth camera lag lerp
 
     // Look at character's head height
     camTarget.current.set(pos.current.x, pos.current.y + 1.4, pos.current.z);
@@ -170,12 +177,12 @@ function Player({
     }
   });
 
-  // ── Mouse drag → rotate character yaw ──
+  // ── Mouse drag → rotate camera yaw ──
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
-      // Only rotate when dragging (left mouse button held)
+      // Only rotate camera when dragging (left mouse button held)
       if ((e.buttons & 1) !== 0) {
-        charYaw.current -= e.movementX * 0.005;
+        camYaw.current -= e.movementX * 0.005;
       }
     };
     window.addEventListener("pointermove", onMove);

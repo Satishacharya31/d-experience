@@ -7,11 +7,12 @@ import {
   deleteProject,
   type ProjectRow,
 } from "@/lib/projects.functions";
+import { FolderGit2, Sparkles, Activity, Plus, Trash2, Edit3, ExternalLink, LogOut, Globe } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "// ADMIN — THE_LAB" },
+      { title: "Dashboard — Admin Console" },
       { name: "robots", content: "noindex,nofollow" },
     ],
   }),
@@ -61,7 +62,7 @@ function AdminPage() {
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [tagInput, setTagInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("admin_token");
@@ -98,7 +99,7 @@ function AdminPage() {
       const data = await fetchProjects();
       setRows(data);
     } catch (e) {
-      setMsg(`! refresh failed: ${(e as Error).message}`);
+      setMsg({ type: "error", text: `Refresh failed: ${(e as Error).message}` });
     }
   };
 
@@ -131,25 +132,26 @@ function AdminPage() {
         year: draft.year ?? null,
       };
       await upsertFn({ data: payload });
-      setMsg("> saved successfully.");
+      setMsg({ type: "success", text: "Project saved successfully." });
       reset();
       await refresh();
     } catch (e) {
-      setMsg(`! ${(e as Error).message}`);
+      setMsg({ type: "error", text: (e as Error).message });
     } finally {
       setBusy(false);
     }
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Delete this project?")) return;
+    if (!confirm("Are you sure you want to delete this project?")) return;
     setBusy(true);
     try {
       await deleteFn({ data: { id } });
       await refresh();
       if (draft.id === id) reset();
+      setMsg({ type: "success", text: "Project deleted." });
     } catch (e) {
-      setMsg(`! ${(e as Error).message}`);
+      setMsg({ type: "error", text: (e as Error).message });
     } finally {
       setBusy(false);
     }
@@ -162,198 +164,283 @@ function AdminPage() {
 
   if (!ready) {
     return (
-      <main className="min-h-screen bg-background text-primary font-mono p-8 scanlines">
-        <div className="text-xs text-terminal-dim">// booting admin shell…</div>
+      <main className="min-h-screen bg-white flex items-center justify-center font-sans">
+        <div className="text-slate-400 text-sm animate-pulse">Loading dashboard...</div>
       </main>
     );
   }
 
   if (!isAdmin) {
     return (
-      <main className="min-h-screen bg-background text-primary font-mono p-8 scanlines">
-        <div className="text-xs text-destructive mb-2">// ACCESS_DENIED</div>
-        <p className="text-sm text-terminal-dim">Signed in as {email} — not an admin.</p>
-        <button onClick={signOut} className="mt-4 text-xs underline">$ logout</button>
+      <main className="min-h-screen bg-white flex items-center justify-center p-8 font-sans">
+        <div className="max-w-md w-full bg-white rounded-2xl border border-slate-100 p-6 shadow-sm text-center">
+          <div className="text-red-500 font-bold text-lg mb-2">Access Denied</div>
+          <p className="text-slate-500 text-sm mb-6">Signed in as {email} — not an administrator.</p>
+          <button onClick={signOut} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-xl text-sm font-medium transition-all">
+            Logout
+          </button>
+        </div>
       </main>
     );
   }
 
+  // Derived Metrics
+  const featuredCount = rows.filter(r => r.featured).length;
+  const liveCount = rows.filter(r => r.status === "live").length;
+
   return (
-    <main className="min-h-screen bg-background text-primary font-mono scanlines pb-12">
-      <header className="border-b border-primary/20 p-4 md:p-6 flex items-center justify-between text-xs bg-black/40 backdrop-blur">
-        <div>
-          <div className="text-glow text-base font-bold">// ADMIN_CONSOLE</div>
-          <div className="text-terminal-dim mt-0.5">uplink: {email}</div>
+    <main className="min-h-screen bg-white text-slate-800 font-sans antialiased">
+      {/* SaaS Navigation Header */}
+      <header className="border-b border-slate-200 bg-white px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-xs">
+            <Globe className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="font-bold text-slate-900 tracking-tight">Satish Acharya</div>
+            <div className="text-[10px] text-slate-400 font-medium">Uplinked: {email}</div>
+          </div>
         </div>
-        <div className="flex gap-4">
-          <Link to="/" className="hover:text-glow text-primary transition-colors">$ / (return_to_world)</Link>
-          <button onClick={signOut} className="hover:text-destructive text-primary cursor-pointer transition-colors">$ logout</button>
+        <div className="flex items-center gap-4 text-sm font-medium">
+          <Link to="/" className="text-slate-500 hover:text-slate-800 transition-colors flex items-center gap-1.5">
+            <ExternalLink className="h-4 w-4" />
+            <span>Visit Portfolio</span>
+          </Link>
+          <div className="h-4 w-px bg-slate-200" />
+          <button onClick={signOut} className="text-slate-500 hover:text-red-600 transition-colors flex items-center gap-1.5 cursor-pointer">
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
+          </button>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto p-4 md:p-6 grid lg:grid-cols-12 gap-6 mt-4">
-        {/* Editor Form - Left column (lg:col-5) */}
-        <section className="lg:col-span-5 border border-primary/30 p-5 bg-black/50 backdrop-blur relative">
-          <div className="absolute top-0 right-0 bg-primary/10 border-l border-b border-primary/30 px-3 py-1 text-[10px] text-primary">
-            {draft.id ? "EDIT_MODE" : "CREATE_MODE"}
-          </div>
-          <div className="text-glow text-sm font-bold mb-4 border-b border-primary/20 pb-2">
-            {draft.id ? "› edit_project_payload" : "› register_new_project"}
-          </div>
-
-          <div className="space-y-4 text-xs">
-            <Field label="project_title">
-              <input className={inputCls} value={draft.title}
-                onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="e.g. Cyberpunk Voxel Engine" />
-            </Field>
-
-            <Field label="slug (unique key, e.g. voxel-world)">
-              <input className={inputCls} value={draft.slug}
-                onChange={(e) => setDraft({ ...draft, slug: e.target.value })} placeholder="a-z0-9- only" />
-            </Field>
-
-            <Field label="description">
-              <textarea rows={3} className={inputCls} value={draft.description}
-                onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="Describe the project..." />
-            </Field>
-
-            <Field label="tags (comma separated)">
-              <input className={inputCls} value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)} placeholder="webgl, react, three.js, shaders" />
-            </Field>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="demo_url">
-                <input className={inputCls} value={draft.url ?? ""}
-                  onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://..." />
-              </Field>
-              <Field label="repository_url">
-                <input className={inputCls} value={draft.repo ?? ""}
-                  onChange={(e) => setDraft({ ...draft, repo: e.target.value })} placeholder="https://github.com/..." />
-              </Field>
+      {/* Main Container */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        
+        {/* Metric Cards Banner */}
+        <section className="grid sm:grid-cols-3 gap-6 mb-8">
+          <div className="bg-slate-50/60 rounded-xl border border-slate-200/60 p-5 shadow-xs flex items-center gap-4">
+            <div className="h-10 w-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+              <FolderGit2 className="h-5 w-5" />
             </div>
-
-            <Field label="cover_image_url">
-              <input className={inputCls} value={draft.cover_image ?? ""}
-                onChange={(e) => setDraft({ ...draft, cover_image: e.target.value })} placeholder="https://..." />
-            </Field>
-
-            <div className="grid grid-cols-3 gap-3">
-              <Field label="deployment_status">
-                <select className={`${inputCls} bg-black h-8`} value={draft.status}
-                  onChange={(e) => setDraft({ ...draft, status: e.target.value })}>
-                  <option value="live">live</option>
-                  <option value="beta">beta</option>
-                  <option value="dev">dev</option>
-                  <option value="archived">archived</option>
-                </select>
-              </Field>
-              <Field label="development_year">
-                <input type="number" className={inputCls} value={draft.year ?? ""}
-                  onChange={(e) => setDraft({ ...draft, year: e.target.value ? Number(e.target.value) : null })} />
-              </Field>
-              <Field label="sort_order">
-                <input type="number" className={inputCls} value={draft.sort_order}
-                  onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value) })} />
-              </Field>
+            <div>
+              <div className="text-2xl font-bold text-slate-900 leading-none">{rows.length}</div>
+              <div className="text-[11px] font-semibold uppercase text-slate-400 tracking-wider mt-1.5">Total Projects</div>
             </div>
+          </div>
 
-            <label className="flex items-center gap-2 cursor-pointer select-none border border-primary/20 p-2 hover:border-primary/50 transition-colors">
-              <input type="checkbox" className="accent-primary" checked={draft.featured}
-                onChange={(e) => setDraft({ ...draft, featured: e.target.checked })} />
-              <span className="text-[11px] text-primary/80">FEATURED_PROJECT (highlight in portal)</span>
-            </label>
+          <div className="bg-slate-50/60 rounded-xl border border-slate-200/60 p-5 shadow-xs flex items-center gap-4">
+            <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-slate-900 leading-none">{featuredCount}</div>
+              <div className="text-[11px] font-semibold uppercase text-slate-400 tracking-wider mt-1.5">Featured Showcase</div>
+            </div>
+          </div>
 
-            <div className="flex items-center gap-3 pt-2">
-              <button disabled={busy} onClick={save}
-                className="border border-primary bg-primary/10 text-primary text-glow font-bold px-4 py-2 hover:bg-primary hover:text-background transition-all disabled:opacity-50 cursor-pointer text-xs uppercase tracking-wider">
-                {busy ? "Executing..." : draft.id ? "$ update" : "$ create"}
-              </button>
-              <button onClick={reset} className="border border-primary/30 px-3 py-2 text-terminal-dim hover:text-primary transition-colors cursor-pointer text-xs">
-                $ reset
-              </button>
-              {msg && <span className={`text-[10px] ${msg.startsWith("!") ? "text-destructive" : "text-primary"}`}>{msg}</span>}
+          <div className="bg-slate-50/60 rounded-xl border border-slate-200/60 p-5 shadow-xs flex items-center gap-4">
+            <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+              <Activity className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-slate-900 leading-none">{liveCount}</div>
+              <div className="text-[11px] font-semibold uppercase text-slate-400 tracking-wider mt-1.5">Active Deployments</div>
             </div>
           </div>
         </section>
 
-        {/* Database List & Preview Cards - Right column (lg:col-7) */}
-        <section className="lg:col-span-7 border border-primary/30 p-5 bg-black/50 backdrop-blur">
-          <div className="flex items-baseline justify-between mb-4 border-b border-primary/20 pb-2">
-            <div className="text-glow text-sm font-bold">// registered_projects</div>
-            <div className="text-xs text-terminal-dim font-bold">Total: {rows.length}</div>
-          </div>
+        {/* Form and List Grid */}
+        <div className="grid lg:grid-cols-12 gap-8 items-start">
+          
+          {/* Left Panel: Form (Sleek Slate/Indigo Card) */}
+          <section className="lg:col-span-5 bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+              <h2 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                <Plus className="h-4 w-4 text-indigo-600" />
+                <span>{draft.id ? "Edit Project Details" : "Create New Project"}</span>
+              </h2>
+              {draft.id && (
+                <button onClick={reset} className="text-xs text-indigo-600 hover:underline">
+                  Clear Draft
+                </button>
+              )}
+            </div>
 
-          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-            {rows.map((p) => {
-              const statusColor = p.status === "live" ? "border-green-400 text-green-400 bg-green-950/20" :
-                                  p.status === "beta" ? "border-cyan-400 text-cyan-400 bg-cyan-950/20" :
-                                  "border-yellow-500 text-yellow-500 bg-yellow-950/20";
-              return (
-                <div key={p.id} className="border border-primary/20 hover:border-primary/50 bg-black/30 p-4 transition-all relative group flex flex-col justify-between">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-glow text-base font-bold text-primary">{p.title}</span>
-                        <span className="text-terminal-dim text-xs">/{p.slug}</span>
-                        {p.featured && (
-                          <span className="border border-accent text-accent px-1.5 py-0.2 text-[8px] tracking-wide uppercase bg-accent/5">featured</span>
-                        )}
-                        <span className={`border px-1.5 py-0.2 text-[8px] tracking-wide uppercase font-bold rounded-sm ${statusColor}`}>
-                          {p.status}
-                        </span>
-                      </div>
-                      <p className="text-primary/70 text-xs mt-1.5 leading-relaxed line-clamp-2">
-                        {p.description || "— No description payload provided —"}
-                      </p>
-                      {p.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-2.5">
-                          {p.tags.map((t) => (
-                            <span key={t} className="text-[9px] border border-primary/20 px-2 py-0.5 text-terminal-dim rounded-sm">
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+            <div className="space-y-4">
+              <Field label="Project Title">
+                <input className={inputCls} value={draft.title}
+                  onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="e.g. Cyberpunk Voxel Engine" />
+              </Field>
 
-                    <div className="flex flex-col gap-2 shrink-0 text-right">
-                      <button onClick={() => startEdit(p)} className="text-xs text-primary hover:text-glow font-bold underline transition-colors cursor-pointer">edit</button>
-                      <button onClick={() => remove(p.id)} className="text-xs text-destructive hover:text-red-400 underline transition-colors cursor-pointer mt-1">del</button>
-                    </div>
-                  </div>
+              <Field label="URL Slug (unique routing key)">
+                <input className={inputCls} value={draft.slug}
+                  onChange={(e) => setDraft({ ...draft, slug: e.target.value })} placeholder="e.g. voxel-world" />
+              </Field>
 
-                  <div className="mt-3 pt-2.5 border-t border-primary/10 flex items-center justify-between text-[9px] text-terminal-dim">
-                    <div>Year: {p.year ?? "N/A"} · Sort Order: {p.sort_order}</div>
-                    <div className="flex gap-3">
-                      {p.url && <a href={p.url} target="_blank" rel="noreferrer" className="hover:text-primary underline">live_link</a>}
-                      {p.repo && <a href={p.repo} target="_blank" rel="noreferrer" className="hover:text-primary underline">repo_link</a>}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+              <Field label="Short Project Description">
+                <textarea rows={3} className={inputCls} value={draft.description}
+                  onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="Summarize what this project achieves..." />
+              </Field>
 
-            {rows.length === 0 && (
-              <div className="py-12 text-center text-terminal-dim border border-dashed border-primary/20">
-                <p className="text-sm">// No projects indexed in Neon DB admins database.</p>
-                <p className="text-[10px] mt-2 text-primary/60">Create one using the form on the left to start.</p>
+              <Field label="Tags (comma separated)">
+                <input className={inputCls} value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)} placeholder="webgl, react, three.js, shaders" />
+              </Field>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Live Demo URL">
+                  <input className={inputCls} value={draft.url ?? ""}
+                    onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://demo.com" />
+                </Field>
+                <Field label="GitHub Repository">
+                  <input className={inputCls} value={draft.repo ?? ""}
+                    onChange={(e) => setDraft({ ...draft, repo: e.target.value })} placeholder="https://github.com/..." />
+                </Field>
               </div>
-            )}
-          </div>
-        </section>
+
+              <Field label="Cover Image URL">
+                <input className={inputCls} value={draft.cover_image ?? ""}
+                  onChange={(e) => setDraft({ ...draft, cover_image: e.target.value })} placeholder="https://..." />
+              </Field>
+
+              <div className="grid grid-cols-3 gap-4">
+                <Field label="Deployment Status">
+                  <select className={`${inputCls} bg-white h-9`} value={draft.status}
+                    onChange={(e) => setDraft({ ...draft, status: e.target.value })}>
+                    <option value="live">live</option>
+                    <option value="beta">beta</option>
+                    <option value="dev">dev</option>
+                    <option value="archived">archived</option>
+                  </select>
+                </Field>
+                <Field label="Launch Year">
+                  <input type="number" className={inputCls} value={draft.year ?? ""}
+                    onChange={(e) => setDraft({ ...draft, year: e.target.value ? Number(e.target.value) : null })} />
+                </Field>
+                <Field label="Display Priority">
+                  <input type="number" className={inputCls} value={draft.sort_order}
+                    onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value) })} />
+                </Field>
+              </div>
+
+              <label className="flex items-center gap-3 select-none border border-slate-100 rounded-lg p-3 hover:bg-slate-50 transition-colors cursor-pointer">
+                <input type="checkbox" className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded cursor-pointer" checked={draft.featured}
+                  onChange={(e) => setDraft({ ...draft, featured: e.target.checked })} />
+                <div>
+                  <div className="text-xs font-semibold text-slate-800">Featured Showcase Project</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Pins this project to the top display grids in the portfolio.</div>
+                </div>
+              </label>
+
+              <div className="flex items-center gap-3 pt-3">
+                <button disabled={busy} onClick={save}
+                  className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-lg px-5 py-2.5 font-medium transition-all shadow-xs text-xs uppercase tracking-wider cursor-pointer disabled:opacity-50 flex items-center gap-1.5">
+                  <span>{draft.id ? "Update Project" : "Publish Project"}</span>
+                </button>
+                <button onClick={reset} className="bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg px-4 py-2.5 font-medium transition-all text-xs cursor-pointer">
+                  Reset
+                </button>
+              </div>
+
+              {msg && (
+                <div className={`text-xs p-3 rounded-lg border mt-2 ${
+                  msg.type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800"
+                }`}>
+                  {msg.text}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Right Panel: Project Management Table & Grid (Sleek List View) */}
+          <section className="lg:col-span-7 bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+              <h2 className="font-bold text-slate-900 text-base">
+                <span>Manage Registered Projects</span>
+              </h2>
+              <span className="text-xs text-slate-400 font-semibold bg-slate-50 border border-slate-100 rounded-md px-2 py-0.5">
+                {rows.length} Active Records
+              </span>
+            </div>
+
+            <div className="space-y-4 max-h-[72vh] overflow-y-auto pr-1">
+              {rows.map((p) => {
+                const statusColor = p.status === "live" ? "bg-emerald-100/70 text-emerald-800 border-emerald-200" :
+                                    p.status === "beta" ? "bg-sky-100/70 text-sky-800 border-sky-200" :
+                                    "bg-amber-100/70 text-amber-800 border-amber-200";
+                return (
+                  <div key={p.id} className="border border-slate-200 rounded-xl hover:border-slate-300 bg-white p-4 transition-all relative flex flex-col justify-between">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold text-slate-900 text-sm tracking-tight">{p.title}</h3>
+                          <span className="text-slate-400 text-xs font-medium">/{p.slug}</span>
+                          {p.featured && (
+                            <span className="border border-amber-200 text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md text-[8px] font-bold tracking-wide uppercase">Featured</span>
+                          )}
+                          <span className={`border px-2 py-0.5 rounded-md text-[8px] font-bold tracking-wide uppercase ${statusColor}`}>
+                            {p.status}
+                          </span>
+                        </div>
+                        <p className="text-slate-500 text-xs mt-1.5 leading-relaxed line-clamp-2">
+                          {p.description || "No description provided."}
+                        </p>
+                        {p.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-3">
+                            {p.tags.map((t) => (
+                              <span key={t} className="text-[9px] font-medium bg-slate-50 border border-slate-200/50 px-2 py-0.5 text-slate-400 rounded-md">
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={() => startEdit(p)} className="h-8 w-8 rounded-lg border border-slate-200 hover:border-slate-300 text-slate-500 hover:text-slate-800 bg-white flex items-center justify-center shadow-2xs hover:shadow-xs transition-all cursor-pointer">
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={() => remove(p.id)} className="h-8 w-8 rounded-lg border border-red-200 hover:border-red-300 text-red-500 hover:text-red-700 bg-red-50/50 hover:bg-red-50 flex items-center justify-center shadow-2xs hover:shadow-xs transition-all cursor-pointer">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                      <div>
+                        Display priority: <span className="text-slate-700 font-bold">{p.sort_order}</span> · Year: <span className="text-slate-700 font-bold">{p.year ?? "N/A"}</span>
+                      </div>
+                      <div className="flex gap-4">
+                        {p.url && <a href={p.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:text-indigo-700 underline font-bold">Launch Demo</a>}
+                        {p.repo && <a href={p.repo} target="_blank" rel="noreferrer" className="text-indigo-600 hover:text-indigo-700 underline font-bold">Source Code</a>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {rows.length === 0 && (
+                <div className="py-12 text-center text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                  <p className="text-sm font-medium">No database records registered.</p>
+                  <p className="text-xs mt-1 text-slate-300">Create a project using the editor panel to get started.</p>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   );
 }
 
 const inputCls =
-  "w-full bg-black border border-primary/30 px-3 py-1.5 text-primary text-xs outline-none focus:border-primary focus:border-glow transition-all";
+  "w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-800 text-xs outline-none focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500 transition-all placeholder-slate-400";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="text-terminal-dim text-[10px] font-bold block mb-1 uppercase tracking-wider">{label}</span>
+      <span className="text-slate-500 text-[10px] font-bold block mb-1.5 uppercase tracking-wider">{label}</span>
       <div>{children}</div>
     </label>
   );
