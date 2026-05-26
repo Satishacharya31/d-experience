@@ -115,6 +115,10 @@
 @layer base {
   * {
     border-color: var(--color-border);
+  }
+
+  .custom-cursor-active,
+  .custom-cursor-active * {
     cursor: none;
   }
 

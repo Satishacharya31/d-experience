@@ -1,10 +1,21 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function Cursor() {
   const dot = useRef<HTMLDivElement>(null);
   const ring = useRef<HTMLDivElement>(null);
   const pos = useRef({ x: 0, y: 0 });
   const trail = useRef({ x: 0, y: 0 });
+  const [isLocked, setIsLocked] = useState(false);
+
+  useEffect(() => {
+    document.documentElement.classList.add("custom-cursor-active");
+    const handleLock = () => setIsLocked(!!document.pointerLockElement);
+    document.addEventListener("pointerlockchange", handleLock);
+    return () => {
+      document.documentElement.classList.remove("custom-cursor-active");
+      document.removeEventListener("pointerlockchange", handleLock);
+    };
+  }, []);
 
   useEffect(() => {
     const move = (e: PointerEvent) => {
@@ -33,16 +44,18 @@ export function Cursor() {
     };
   }, []);
 
+  if (isLocked) return null;
+
   return (
     <>
       <div
         ref={ring}
-        className="fixed top-0 left-0 z-[60] pointer-events-none w-8 h-8 -ml-4 -mt-4 border border-primary/70 rounded-full mix-blend-screen"
+        className="fixed top-0 left-0 z-[9999] pointer-events-none w-8 h-8 -ml-4 -mt-4 border border-primary/70 rounded-full mix-blend-screen"
         style={{ boxShadow: "0 0 12px var(--terminal-green)" }}
       />
       <div
         ref={dot}
-        className="fixed top-0 left-0 z-[60] pointer-events-none w-1.5 h-1.5 -ml-[3px] -mt-[3px] bg-primary rounded-full"
+        className="fixed top-0 left-0 z-[9999] pointer-events-none w-1.5 h-1.5 -ml-[3px] -mt-[3px] bg-primary rounded-full"
         style={{ boxShadow: "0 0 8px var(--terminal-green)" }}
       />
     </>
