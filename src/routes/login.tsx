@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { loginAdminFn } from "@/lib/projects.functions";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -14,28 +15,37 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
+  const loginFn = useServerFn(loginAdminFn);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/admin" });
-    });
+    // Check locally for existing JWT session
+    const token = localStorage.getItem("admin_token");
+    if (token) {
+      navigate({ to: "/admin" });
+    }
   }, [navigate]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setErr(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) {
-      setErr(error.message);
-      return;
+    try {
+      const res = await loginFn({ data: { email, password } });
+      if (res.token) {
+        localStorage.setItem("admin_token", res.token);
+        navigate({ to: "/admin" });
+      } else {
+        setErr("Invalid token response");
+      }
+    } catch (error) {
+      setErr((error as Error).message || "Invalid email or passphrase");
+    } finally {
+      setBusy(false);
     }
-    navigate({ to: "/admin" });
   };
 
   return (

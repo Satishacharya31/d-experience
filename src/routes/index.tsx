@@ -98,9 +98,10 @@ function Index() {
         });
       } else if ((e.key === "e" || e.key === "E") && !openZone) {
         interactRef.current = true;
-      } else if (e.key === "Escape") {
+      } else if (e.key === "q" || e.key === "Q") {
         if (openZone) setOpenZone(null);
-        else if (cliOpen) setCliOpen(false);
+      } else if (e.key === "Escape") {
+        if (cliOpen) setCliOpen(false);
       } else if (e.key === "m" || e.key === "M") {
         gameStore.toggleMute();
       }

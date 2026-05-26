@@ -20,6 +20,8 @@ type Keys = {
 };
 
 // ── Player ─────────────────────────────────────────────────────────────────────
+// Character-relative movement: WASD moves relative to where the character faces.
+// Camera is always locked behind the character. Drag rotates the character.
 function Player({
   keys,
   onZoneChange,
@@ -38,50 +40,62 @@ function Player({
   const group = useRef<THREE.Group | null>(null);
   const moving = useRef(false);
   const velY = useRef(0);
-  const yaw = useRef(0);
+  const charYaw = useRef(0);        // character facing direction (radians)
   const pos = useRef(new THREE.Vector3(0, 0, 0));
   const camTarget = useRef(new THREE.Vector3());
   const camDesired = useRef(new THREE.Vector3());
   const lastZone = useRef<ZoneId | null>(null);
-  const jumpsLeft = useRef(2); // double jump counter
+  const jumpsLeft = useRef(2);
   const wasSpace = useRef(false);
+  const walkTime = useRef(0);       // for camera bob
   const { camera } = useThree();
 
   useFrame((_, delta) => {
     const d = Math.min(delta, 0.05);
 
     // ── Input: keyboard + touch joystick ──
-    let dx = 0, dz = 0;
-    if (keys.current.w) dz += 1;
-    if (keys.current.s) dz -= 1;
-    if (keys.current.a) dx += 1;
-    if (keys.current.d) dx -= 1;
+    // inputZ: +1 = forward (W), -1 = backward (S) relative to character
+    // inputX: +1 = strafe right (D), -1 = strafe left (A) relative to character
+    let inputX = 0, inputZ = 0;
+    if (keys.current.w) inputZ += 1;   // forward
+    if (keys.current.s) inputZ -= 1;   // backward
+    if (keys.current.a) inputX -= 1;   // strafe left
+    if (keys.current.d) inputX += 1;   // strafe right
 
-    // Touch joystick override/blend
+    // Touch joystick: x = left/right, y = forward/back
     if (touchJoy.current.x !== 0 || touchJoy.current.y !== 0) {
-      dx = touchJoy.current.x;
-      dz = touchJoy.current.y;
+      inputX = touchJoy.current.x;
+      inputZ = touchJoy.current.y;
     }
 
-    const len = Math.hypot(dx, dz);
-    moving.current = len > 0;
+    const inputLen = Math.hypot(inputX, inputZ);
+    moving.current = inputLen > 0.01;
 
-    if (len > 0) {
-      dx /= len; dz /= len;
-      const cy = Math.cos(yaw.current);
-      const sy = Math.sin(yaw.current);
-      const mx = dx * cy - dz * sy;
-      const mz = dx * sy + dz * cy;
-      pos.current.x += mx * SPEED * d;
-      pos.current.z += mz * SPEED * d;
-      const targetYaw = Math.atan2(mx, mz);
-      if (group.current) {
-        let cur = group.current.rotation.y;
-        let diff = targetYaw - cur;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        group.current.rotation.y = cur + diff * Math.min(1, d * 12);
-      }
+    if (moving.current) {
+      // Normalize input
+      const nx = inputX / inputLen;
+      const nz = inputZ / inputLen;
+
+      // Compute forward and right vectors from character yaw
+      const fwdX = Math.sin(charYaw.current);
+      const fwdZ = Math.cos(charYaw.current);
+      const rightX = Math.cos(charYaw.current);
+      const rightZ = -Math.sin(charYaw.current);
+
+      // World-space movement = forward * inputZ + right * inputX
+      const worldMoveX = fwdX * nz + rightX * nx;
+      const worldMoveZ = fwdZ * nz + rightZ * nx;
+
+      pos.current.x += worldMoveX * SPEED * d;
+      pos.current.z += worldMoveZ * SPEED * d;
+
+      // Update walk time for camera bob
+      walkTime.current += d * 9;
+    }
+
+    // Character model always faces the charYaw direction
+    if (group.current) {
+      group.current.rotation.y = charYaw.current;
     }
 
     // ── Jump / gravity with double jump ──
@@ -95,7 +109,6 @@ function Player({
           velY.current = JUMP;
           jumpsLeft.current--;
           audio.jump();
-          // First jump quest
           gameStore.completeQuest("first_jump");
           onJump();
         } else if (jumpsLeft.current > 0) {
@@ -120,16 +133,23 @@ function Player({
     if (group.current) group.current.position.copy(pos.current);
     playerPos.current.copy(pos.current);
 
-    // ── Camera (3rd-person follow) ──
-    const camDist = 9;
-    const camHeight = 5;
+    // ── Camera (3rd-person, always behind character) ──
+    const camDist = 10;
+    const camHeight = 5.5;
+    // Camera bob when walking
+    const bobY = moving.current ? Math.sin(walkTime.current) * 0.06 : 0;
+    const bobX = moving.current ? Math.cos(walkTime.current * 0.5) * 0.03 : 0;
+
+    // Camera is positioned BEHIND the character (opposite of forward direction)
     camDesired.current.set(
-      pos.current.x - Math.sin(yaw.current) * camDist,
-      pos.current.y + camHeight,
-      pos.current.z - Math.cos(yaw.current) * camDist,
+      pos.current.x - Math.sin(charYaw.current) * camDist + bobX,
+      pos.current.y + camHeight + bobY,
+      pos.current.z - Math.cos(charYaw.current) * camDist,
     );
-    camera.position.lerp(camDesired.current, Math.min(1, d * 6));
-    camTarget.current.set(pos.current.x, pos.current.y + 1.2, pos.current.z);
+    camera.position.lerp(camDesired.current, Math.min(1, d * 5));
+
+    // Look at character's head height
+    camTarget.current.set(pos.current.x, pos.current.y + 1.4, pos.current.z);
     camera.lookAt(camTarget.current);
 
     // ── Zone detection ──
@@ -150,12 +170,12 @@ function Player({
     }
   });
 
-  // ── Mouse look (drag only) ──
+  // ── Mouse drag → rotate character yaw ──
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
-      // Only rotate camera when dragging (left mouse button held)
+      // Only rotate when dragging (left mouse button held)
       if ((e.buttons & 1) !== 0) {
-        yaw.current -= e.movementX * 0.004;
+        charYaw.current -= e.movementX * 0.005;
       }
     };
     window.addEventListener("pointermove", onMove);
@@ -336,13 +356,6 @@ export function VoxelWorld({
           onInteract={handleTouchInteract}
         />
       )}
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 0.6; }
-          50% { opacity: 1; }
-        }
-      `}</style>
     </>
   );
 }

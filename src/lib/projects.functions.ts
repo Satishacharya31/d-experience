@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabase } from "@/integrations/supabase/client";
+import { requireNeonAdmin, loginAdmin } from "./auth.server";
+import { sql } from "./db.server";
 
 export type ProjectRow = {
   id: string;
@@ -33,47 +33,74 @@ const projectInput = z.object({
   sort_order: z.number().int().default(0),
 });
 
-async function requireAdmin(supabaseClient: ReturnType<typeof import("@supabase/supabase-js").createClient>, userId: string) {
-  const { data, error } = await supabaseClient
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("Forbidden: admin role required");
-}
-
-export async function fetchProjects(): Promise<ProjectRow[]> {
-  const { data, error } = await supabase
-    .from("projects")
-    .select("*")
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as ProjectRow[];
-}
+export const fetchProjects = createServerFn({ method: "GET" })
+  .handler(async (): Promise<ProjectRow[]> => {
+    const data = await sql`
+      SELECT * FROM projects 
+      ORDER BY sort_order ASC, created_at DESC
+    `;
+    return (data ?? []) as ProjectRow[];
+  });
 
 export const upsertProject = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireNeonAdmin])
   .inputValidator((data) => projectInput.parse(data))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase as never, context.userId);
-    const { data: row, error } = await context.supabase
-      .from("projects")
-      .upsert(data, { onConflict: "id" })
-      .select("*")
-      .single();
-    if (error) throw new Error(error.message);
+  .handler(async ({ data }) => {
+    let row;
+    if (data.id) {
+      const rows = await sql`
+        INSERT INTO projects (
+          id, slug, title, description, tags, url, repo, cover_image, status, year, featured, sort_order
+        ) VALUES (
+          ${data.id}, ${data.slug}, ${data.title}, ${data.description}, ${data.tags}, ${data.url || null}, ${data.repo || null}, ${data.cover_image || null}, ${data.status}, ${data.year || null}, ${data.featured}, ${data.sort_order}
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          slug = EXCLUDED.slug,
+          title = EXCLUDED.title,
+          description = EXCLUDED.description,
+          tags = EXCLUDED.tags,
+          url = EXCLUDED.url,
+          repo = EXCLUDED.repo,
+          cover_image = EXCLUDED.cover_image,
+          status = EXCLUDED.status,
+          year = EXCLUDED.year,
+          featured = EXCLUDED.featured,
+          sort_order = EXCLUDED.sort_order,
+          updated_at = NOW()
+        RETURNING *
+      `;
+      row = rows[0];
+    } else {
+      const rows = await sql`
+        INSERT INTO projects (
+          slug, title, description, tags, url, repo, cover_image, status, year, featured, sort_order
+        ) VALUES (
+          ${data.slug}, ${data.title}, ${data.description}, ${data.tags}, ${data.url || null}, ${data.repo || null}, ${data.cover_image || null}, ${data.status}, ${data.year || null}, ${data.featured}, ${data.sort_order}
+        )
+        RETURNING *
+      `;
+      row = rows[0];
+    }
     return row as ProjectRow;
   });
 
 export const deleteProject = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireNeonAdmin])
   .inputValidator((data) => z.object({ id: z.string().uuid() }).parse(data))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase as never, context.userId);
-    const { error } = await context.supabase.from("projects").delete().eq("id", data.id);
-    if (error) throw new Error(error.message);
+  .handler(async ({ data }) => {
+    await sql`DELETE FROM projects WHERE id = ${data.id}`;
     return { ok: true };
   });
+
+export const loginAdminFn = createServerFn({ method: "POST" })
+  .inputValidator((data) =>
+    z.object({
+      email: z.string().email(),
+      password: z.string().min(1),
+    }).parse(data)
+  )
+  .handler(async ({ data }) => {
+    const token = await loginAdmin(data.email, data.password);
+    return { token };
+  });
+

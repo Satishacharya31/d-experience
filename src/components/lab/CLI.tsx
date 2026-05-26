@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { fetchProjects } from "@/lib/projects.functions";
 
 type Line = { kind: "in" | "out" | "err" | "raw"; text: string };
 
@@ -38,13 +39,11 @@ export function CLI() {
   const [projects, setProjects] = useState<ProjectLite[]>(FALLBACK_PROJECTS);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const getProjects = useServerFn(fetchProjects);
 
   useEffect(() => {
-    supabase
-      .from("projects")
-      .select("slug,title,description,url")
-      .order("sort_order", { ascending: true })
-      .then(({ data }) => {
+    getProjects()
+      .then((data) => {
         if (data && data.length) {
           setProjects(
             data.map((d) => ({
@@ -54,8 +53,9 @@ export function CLI() {
             })),
           );
         }
-      });
-  }, []);
+      })
+      .catch((err) => console.error("Error loading CLI projects:", err));
+  }, [getProjects]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -189,7 +189,7 @@ export function CLI() {
             <button
               key={c}
               onClick={() => run(c)}
-              className="px-2 py-1 border border-primary/20 hover:border-primary hover:text-primary hover:text-glow transition-colors"
+              className="px-2 py-1 border border-primary/20 hover:border-primary hover:text-primary hover:text-glow transition-colors font-mono cursor-pointer"
             >
               › {c}
             </button>

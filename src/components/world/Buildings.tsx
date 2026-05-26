@@ -251,7 +251,7 @@ function Hub({ color }: { color: string }) {
       // Scanning line going up and down
       const t = (s.clock.elapsedTime * 0.8) % 2;
       scanRef.current.position.y = t < 1 ? t * 3.5 + 0.3 : (2 - t) * 3.5 + 0.3;
-      scanRef.current.material.opacity = 0.3 + Math.sin(s.clock.elapsedTime * 3) * 0.1;
+      (scanRef.current.material as THREE.MeshStandardMaterial).opacity = 0.3 + Math.sin(s.clock.elapsedTime * 3) * 0.1;
     }
   });
 
