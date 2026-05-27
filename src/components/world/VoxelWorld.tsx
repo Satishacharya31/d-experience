@@ -368,7 +368,7 @@ export function VoxelWorld({
                 userSelect: "none",
               }}
             >
-              WASD / ARROWS TO MOVE · DRAG TO LOOK
+              WASD MOVE · DRAG TO TURN · SPACE JUMP · E ENTER
             </div>
           </div>
         )}
