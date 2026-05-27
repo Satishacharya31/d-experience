@@ -1,22 +1,27 @@
 import * as THREE from "three";
-import { useMemo } from "react";
-import { TREES, ROCKS } from "@/lib/worldObstacles";
+import { useFrame } from "@react-three/fiber";
+import { useMemo, useRef, useState } from "react";
+import {
+  CHUNK_SIZE,
+  visibleChunks,
+  type ChunkData,
+  type TreeInstance,
+  type RockInstance,
+} from "@/lib/chunkWorld";
 
-// Natural terrain with subtle height noise, scattered trees, rocks, and a soft path grid.
-function Tree({ x, z, scale, tilt, kind }: { x: number; z: number; scale: number; tilt: number; kind: 0 | 1 | 2 }) {
-  // 3 silhouettes: pine (stacked cones), broadleaf (sphere-ish icosa), birch (tall cylinder + small top).
-  const trunkColor = kind === 2 ? "#d8d2c0" : "#3a2a18";
-  const leafA = kind === 0 ? "#1d6b3a" : kind === 1 ? "#2f8a4a" : "#4ea05a";
-  const leafB = kind === 0 ? "#16542c" : kind === 1 ? "#246e3a" : "#3d8a48";
+// ── Atoms ────────────────────────────────────────────────────────────────────
+function Tree({ t }: { t: TreeInstance }) {
+  const trunkColor = t.kind === 2 ? "#d8d2c0" : "#3a2a18";
+  const leafA = t.kind === 0 ? "#1d6b3a" : t.kind === 1 ? "#2f8a4a" : "#4ea05a";
+  const leafB = t.kind === 0 ? "#16542c" : t.kind === 1 ? "#246e3a" : "#3d8a48";
 
   return (
-    <group position={[x, 0, z]} rotation={[tilt, Math.random() * Math.PI, tilt * 0.6]} scale={scale}>
-      {/* trunk */}
+    <group position={[t.x, 0, t.z]} rotation={[t.tilt, t.rot, t.tilt * 0.6]} scale={t.scale}>
       <mesh position={[0, 0.9, 0]} castShadow>
         <cylinderGeometry args={[0.18, 0.26, 1.8, 8]} />
         <meshStandardMaterial color={trunkColor} roughness={0.95} />
       </mesh>
-      {kind === 0 && (
+      {t.kind === 0 && (
         <>
           <mesh position={[0, 2.3, 0]} castShadow>
             <coneGeometry args={[1.1, 1.6, 8]} />
@@ -32,7 +37,7 @@ function Tree({ x, z, scale, tilt, kind }: { x: number; z: number; scale: number
           </mesh>
         </>
       )}
-      {kind === 1 && (
+      {t.kind === 1 && (
         <>
           <mesh position={[0, 2.6, 0]} castShadow>
             <icosahedronGeometry args={[1.25, 0]} />
@@ -44,29 +49,69 @@ function Tree({ x, z, scale, tilt, kind }: { x: number; z: number; scale: number
           </mesh>
         </>
       )}
-      {kind === 2 && (
-        <>
-          <mesh position={[0, 2.4, 0]} castShadow>
-            <icosahedronGeometry args={[1.0, 0]} />
-            <meshStandardMaterial color={leafA} roughness={0.85} flatShading />
-          </mesh>
-        </>
+      {t.kind === 2 && (
+        <mesh position={[0, 2.4, 0]} castShadow>
+          <icosahedronGeometry args={[1.0, 0]} />
+          <meshStandardMaterial color={leafA} roughness={0.85} flatShading />
+        </mesh>
       )}
     </group>
   );
 }
 
-function Rock({ x, z, scale, rot }: { x: number; z: number; scale: number; rot: number }) {
+function Rock({ r }: { r: RockInstance }) {
   return (
-    <mesh position={[x, 0.3 * scale, z]} rotation={[0, rot, 0]} scale={scale} castShadow receiveShadow>
+    <mesh position={[r.x, 0.3 * r.scale, r.z]} rotation={[0, r.rot, 0]} scale={r.scale} castShadow receiveShadow>
       <dodecahedronGeometry args={[0.7, 0]} />
       <meshStandardMaterial color="#5a5d63" roughness={0.95} flatShading />
     </mesh>
   );
 }
 
-export function Ground() {
-  // Subtle path tiles (cross-shaped) connecting spawn to each building.
+function Chunk({ data }: { data: ChunkData }) {
+  return (
+    <group>
+      {data.patches.map((p, i) => (
+        <mesh key={`p${i}`} rotation-x={-Math.PI / 2} position={[p.x, 0.005, p.z]}>
+          <circleGeometry args={[p.r, 20]} />
+          <meshStandardMaterial color="#243d22" roughness={1} transparent opacity={0.8} />
+        </mesh>
+      ))}
+      {data.trees.map((t, i) => <Tree key={`t${i}`} t={t} />)}
+      {data.rocks.map((r, i) => <Rock key={`r${i}`} r={r} />)}
+    </group>
+  );
+}
+
+// ── Main Ground (follows player, streams chunks) ─────────────────────────────
+export function Ground({
+  playerPos,
+}: {
+  playerPos: React.MutableRefObject<THREE.Vector3>;
+}) {
+  const groundRef = useRef<THREE.Mesh>(null!);
+  const [chunks, setChunks] = useState<ChunkData[]>(() => visibleChunks(0, 0));
+  const lastChunkKey = useRef("0,0");
+
+  // Stream chunks as player moves.
+  useFrame(() => {
+    const px = playerPos.current.x;
+    const pz = playerPos.current.z;
+    // Move the grass plane to follow the player so it appears infinite.
+    if (groundRef.current) {
+      groundRef.current.position.x = Math.round(px / CHUNK_SIZE) * CHUNK_SIZE;
+      groundRef.current.position.z = Math.round(pz / CHUNK_SIZE) * CHUNK_SIZE;
+    }
+    const cx = Math.floor(px / CHUNK_SIZE);
+    const cz = Math.floor(pz / CHUNK_SIZE);
+    const key = `${cx},${cz}`;
+    if (key !== lastChunkKey.current) {
+      lastChunkKey.current = key;
+      setChunks(visibleChunks(px, pz));
+    }
+  });
+
+  // Stone path tiles around spawn (fixed landmarks).
   const pathTiles = useMemo(() => {
     const tiles: { x: number; z: number }[] = [];
     for (let i = -20; i <= 20; i += 2) {
@@ -76,44 +121,15 @@ export function Ground() {
     return tiles;
   }, []);
 
-  // Boundary "stone wall" segments — chunky rocks, not glowing cubes.
-  const wall = useMemo(() => {
-    const out: { x: number; z: number; s: number }[] = [];
-    const r = 54;
-    for (let i = 0; i < 80; i++) {
-      const t = (i / 80) * Math.PI * 2;
-      out.push({
-        x: Math.cos(t) * r + (Math.random() - 0.5) * 0.6,
-        z: Math.sin(t) * r + (Math.random() - 0.5) * 0.6,
-        s: 0.9 + Math.random() * 0.7,
-      });
-    }
-    return out;
-  }, []);
-
   return (
     <>
-      {/* Main grass plane — warm natural green, not neon */}
-      <mesh rotation-x={-Math.PI / 2} receiveShadow>
-        <planeGeometry args={[140, 140, 1, 1]} />
+      {/* Infinite-looking grass: large plane that follows the player */}
+      <mesh ref={groundRef} rotation-x={-Math.PI / 2} receiveShadow>
+        <planeGeometry args={[400, 400, 1, 1]} />
         <meshStandardMaterial color="#2d4a2a" roughness={1} />
       </mesh>
 
-      {/* Darker organic patches (dirt / shadow) */}
-      {Array.from({ length: 14 }).map((_, i) => {
-        const a = (i / 14) * Math.PI * 2;
-        const r = 12 + (i % 4) * 8;
-        const x = Math.cos(a) * r;
-        const z = Math.sin(a) * r;
-        return (
-          <mesh key={i} rotation-x={-Math.PI / 2} position={[x, 0.005, z]}>
-            <circleGeometry args={[3 + (i % 3), 24]} />
-            <meshStandardMaterial color="#243d22" roughness={1} transparent opacity={0.85} />
-          </mesh>
-        );
-      })}
-
-      {/* Stone path tiles to each building */}
+      {/* Spawn-area path tiles */}
       {pathTiles.map((p, i) => (
         <mesh key={i} rotation-x={-Math.PI / 2} position={[p.x, 0.012, p.z]}>
           <planeGeometry args={[1.6, 1.6]} />
@@ -121,23 +137,8 @@ export function Ground() {
         </mesh>
       ))}
 
-      {/* Trees */}
-      {TREES.map((t, i) => (
-        <Tree key={`t${i}`} {...t} />
-      ))}
-
-      {/* Rocks */}
-      {ROCKS.map((r, i) => (
-        <Rock key={`r${i}`} {...r} />
-      ))}
-
-      {/* Stone boundary wall */}
-      {wall.map((w, i) => (
-        <mesh key={`w${i}`} position={[w.x, 0.5 * w.s, w.z]} scale={w.s} castShadow receiveShadow>
-          <dodecahedronGeometry args={[1, 0]} />
-          <meshStandardMaterial color="#4a4a52" roughness={0.95} flatShading />
-        </mesh>
-      ))}
+      {/* Streamed chunks (trees, rocks, dirt patches) */}
+      {chunks.map((c) => <Chunk key={c.key} data={c} />)}
     </>
   );
 }

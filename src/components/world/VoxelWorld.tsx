@@ -8,7 +8,7 @@ import { Shards } from "./Shards";
 import { Joystick } from "./Joystick";
 import { gameStore } from "@/lib/gameStore";
 import { audio } from "@/lib/audio";
-import { OBSTACLES, WORLD_HALF } from "@/lib/worldObstacles";
+import { visibleChunks, BUILDING_OBSTACLES } from "@/lib/chunkWorld";
 
 const PLAYER_RADIUS = 0.45;
 
@@ -54,21 +54,26 @@ function Player({
   const walkTime = useRef(0);
   const { camera } = useThree();
 
-  // Resolve collisions: push player out of any overlapping cylindrical obstacle.
+  // Resolve collisions against nearby chunk obstacles + fixed buildings.
   const resolveCollisions = (px: number, pz: number): [number, number] => {
     let x = px, z = pz;
-    for (let i = 0; i < OBSTACLES.length; i++) {
-      const o = OBSTACLES[i];
-      const dx = x - o.x;
-      const dz = z - o.z;
-      const dist = Math.hypot(dx, dz);
-      const minDist = o.r + PLAYER_RADIUS;
-      if (dist > 0 && dist < minDist) {
-        const push = (minDist - dist) / dist;
-        x += dx * push;
-        z += dz * push;
-      } else if (dist === 0) {
-        x += minDist;
+    const nearby = visibleChunks(x, z);
+    const sources = [BUILDING_OBSTACLES, ...nearby.map((c) => c.obstacles)];
+    for (let s = 0; s < sources.length; s++) {
+      const list = sources[s];
+      for (let i = 0; i < list.length; i++) {
+        const o = list[i];
+        const dx = x - o.x;
+        const dz = z - o.z;
+        const dist = Math.hypot(dx, dz);
+        const minDist = o.r + PLAYER_RADIUS;
+        if (dist > 0 && dist < minDist) {
+          const push = (minDist - dist) / dist;
+          x += dx * push;
+          z += dz * push;
+        } else if (dist === 0) {
+          x += minDist;
+        }
       }
     }
     return [x, z];
@@ -151,9 +156,7 @@ function Player({
     pos.current.y += velY.current * d;
     if (pos.current.y < 0) { pos.current.y = 0; velY.current = 0; }
 
-    // World clamp
-    pos.current.x = THREE.MathUtils.clamp(pos.current.x, -WORLD_HALF, WORLD_HALF);
-    pos.current.z = THREE.MathUtils.clamp(pos.current.z, -WORLD_HALF, WORLD_HALF);
+    // No hard boundary — endless world.
 
     if (group.current) group.current.position.copy(pos.current);
     playerPos.current.copy(pos.current);
@@ -313,7 +316,7 @@ export function VoxelWorld({
       <div ref={canvasWrapRef} className="fixed inset-0 z-0" style={{ cursor: 'grab' }} onMouseDown={(e) => { (e.currentTarget as HTMLDivElement).style.cursor = 'grabbing'; }} onMouseUp={(e) => { (e.currentTarget as HTMLDivElement).style.cursor = 'grab'; }}>
         <Canvas shadows camera={{ position: [0, 6, 10], fov: 60 }} dpr={[1, 2]}>
           <color attach="background" args={["#04070a"]} />
-          <fog attach="fog" args={["#04070a", 30, 90]} />
+          <fog attach="fog" args={["#0c1a14", 60, 180]} />
           <ambientLight intensity={0.35} />
           <directionalLight
             position={[20, 30, 10]}
@@ -328,7 +331,7 @@ export function VoxelWorld({
           />
           <hemisphereLight args={["#00ff88", "#020405", 0.25]} />
           <Suspense fallback={null}>
-            <Ground />
+            <Ground playerPos={playerPos} />
             <Buildings />
             <Shards playerPos={playerPos} />
             <Player
