@@ -316,7 +316,7 @@ export function VoxelWorld({
       <div ref={canvasWrapRef} className="fixed inset-0 z-0" style={{ cursor: 'grab' }} onMouseDown={(e) => { (e.currentTarget as HTMLDivElement).style.cursor = 'grabbing'; }} onMouseUp={(e) => { (e.currentTarget as HTMLDivElement).style.cursor = 'grab'; }}>
         <Canvas shadows camera={{ position: [0, 6, 10], fov: 60 }} dpr={[1, 2]}>
           <color attach="background" args={["#04070a"]} />
-          <fog attach="fog" args={["#04070a", 30, 90]} />
+          <fog attach="fog" args={["#0c1a14", 60, 180]} />
           <ambientLight intensity={0.35} />
           <directionalLight
             position={[20, 30, 10]}
