@@ -162,6 +162,25 @@ class RetroSynth {
     } catch { /* ignore */ }
   }
 
+  /** Classic retro laser shoot sound — descending frequency sweep */
+  shoot() {
+    try {
+      const ctx = this.getCtx();
+      const g = this.masterGain(ctx, 0.07); // small volume since it is fired repeatedly
+      const osc = ctx.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(1400, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(180, ctx.currentTime + 0.14);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(1, ctx.currentTime);
+      env.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.connect(env);
+      env.connect(g);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.16);
+    } catch { /* ignore */ }
+  }
+
   /** Zone enter beep */
   zoneEnter() {
     try {

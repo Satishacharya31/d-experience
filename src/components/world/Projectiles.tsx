@@ -1,4 +1,4 @@
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useRef } from "react";
 import * as THREE from "three";
 
@@ -82,7 +82,7 @@ function BulletMesh({ data }: { data: BulletData }) {
   });
 
   return (
-    <group ref={groupRef} visible={false}>
+    <group ref={groupRef} visible={false} name="bullet">
       {/* Core */}
       <mesh>
         <sphereGeometry args={[0.12, 8, 8]} />
@@ -162,7 +162,7 @@ function HitMesh({ data }: { data: HitEffect }) {
   });
 
   return (
-    <group ref={groupRef} visible={false}>
+    <group ref={groupRef} visible={false} name="particle">
       {/* Flash sphere */}
       <mesh ref={flashRef}>
         <sphereGeometry args={[1, 8, 8]} />
@@ -202,6 +202,7 @@ export function ProjectileManager({
 }: {
   shootQueue: React.MutableRefObject<{ pos: THREE.Vector3; dir: THREE.Vector3 }[]>;
 }) {
+  const { scene } = useThree();
   const pool = useRef<BulletData[]>(createPool());
   const hits = useRef<HitEffect[]>(createHitPool());
   const nextSlot = useRef(0);
@@ -251,17 +252,57 @@ export function ProjectileManager({
         spawnHit(b.pos.clone());
         continue;
       }
-      // Move bullet
-      b.pos.x += b.dir.x * BULLET_SPEED * d;
-      b.pos.y += b.dir.y * BULLET_SPEED * d - 3.5 * b.age * d;
-      b.pos.z += b.dir.z * BULLET_SPEED * d;
+      
+      // Calculate candidate next position
+      const nextPos = new THREE.Vector3(
+        b.pos.x + b.dir.x * BULLET_SPEED * d,
+        b.pos.y + b.dir.y * BULLET_SPEED * d - 3.5 * b.age * d,
+        b.pos.z + b.dir.z * BULLET_SPEED * d
+      );
 
-      // ── Ground collision ──
-      if (b.pos.y <= 0.1) {
-        b.alive = false;
-        const hitPos = b.pos.clone();
-        hitPos.y = 0.1;
-        spawnHit(hitPos);
+      // Raycast along step vector
+      const stepVec = new THREE.Vector3().subVectors(nextPos, b.pos);
+      const stepDist = stepVec.length();
+      const stepDir = stepVec.clone().normalize();
+
+      const raycaster = new THREE.Raycaster(b.pos, stepDir, 0, stepDist + 0.15);
+      const intersects = raycaster.intersectObjects(scene.children, true);
+      let collided = false;
+
+      for (const hit of intersects) {
+        // Exclude player, bullets, and spark particles
+        let isPlayerOrFX = false;
+        let p: THREE.Object3D | null = hit.object;
+        while (p) {
+          if (
+            p.name === "bullet" ||
+            p.name === "particle" ||
+            p.name === "player" ||
+            p.name.includes("Character")
+          ) {
+            isPlayerOrFX = true;
+            break;
+          }
+          p = p.parent;
+        }
+
+        if (!isPlayerOrFX) {
+          b.alive = false;
+          spawnHit(hit.point);
+          collided = true;
+          break;
+        }
+      }
+
+      if (!collided) {
+        b.pos.copy(nextPos);
+        // Ground safety check fallback
+        if (b.pos.y <= 0.1) {
+          b.alive = false;
+          const hitPos = b.pos.clone();
+          hitPos.y = 0.1;
+          spawnHit(hitPos);
+        }
       }
     }
 

@@ -3,16 +3,9 @@ import type { ZoneId } from "./Buildings";
 export function WorldHUD({ zone, cliOpen }: { zone: ZoneId | null; cliOpen: boolean }) {
   return (
     <>
-      {/* controls bottom-center */}
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none text-[10px] md:text-xs font-mono text-terminal-dim text-center">
-        <div className="flex gap-3 md:gap-4 justify-center flex-wrap px-3">
-          <Key k="WASD" label="move" />
-          <Key k="DRAG" label="look" />
-          <Key k="SPACE" label="jump" />
-          <Key k="E" label="enter" />
-          <Key k="Q" label="exit" />
-          <Key k="`" label={cliOpen ? "close cli" : "open cli"} />
-        </div>
+      {/* CLI hint key bottom-left corner stacked cleanly above brand */}
+      <div className="fixed bottom-14 left-4 md:left-6 z-20 pointer-events-none text-[10px] md:text-xs font-mono text-terminal-dim">
+        <Key k="`" label={cliOpen ? "close cli" : "open cli"} />
       </div>
 
       {/* zone prompt center-bottom-ish */}

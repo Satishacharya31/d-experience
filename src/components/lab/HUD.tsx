@@ -1,19 +1,5 @@
 import { useEffect, useState } from "react";
 
-function useHexClock() {
-  const [v, setV] = useState("");
-  useEffect(() => {
-    const tick = () => {
-      const n = Date.now();
-      setV("0x" + n.toString(16).toUpperCase().slice(-10));
-    };
-    tick();
-    const id = setInterval(tick, 73);
-    return () => clearInterval(id);
-  }, []);
-  return v;
-}
-
 function useFps() {
   const [fps, setFps] = useState(60);
   useEffect(() => {
@@ -36,20 +22,32 @@ function useFps() {
   return fps;
 }
 
-export function HUD() {
-  const hex = useHexClock();
-  const fps = useFps();
-  const [stream, setStream] = useState<string[]>([]);
-
+// Dynamic rolling hacker telemetry data stream
+function useDataStream() {
+  const [lines, setLines] = useState<string[]>([]);
   useEffect(() => {
-    const gen = () =>
-      Array.from({ length: 8 }, () =>
-        Math.random().toString(16).slice(2, 10).toUpperCase(),
-      );
-    setStream(gen());
-    const id = setInterval(() => setStream(gen()), 400);
+    const generate = () => {
+      const hex1 = "0x" + Math.floor(Math.random() * 0xffffffff).toString(16).toUpperCase();
+      const hex2 = "0x" + Math.floor(Math.random() * 0xffffffff).toString(16).toUpperCase();
+      const hex3 = "0x" + Math.floor(Math.random() * 0xffffffff).toString(16).toUpperCase();
+      setLines([
+        "0x" + Date.now().toString(16).toUpperCase().slice(-10),
+        `RX_PORT // 0x1F8B`,
+        `TX_GATE // ${hex1}`,
+        `SYS_SIG // ${hex2}`,
+        `D_STREAM // ${hex3}`
+      ]);
+    };
+    generate();
+    const id = setInterval(generate, 1600); // Shift data stream every 1.6s
     return () => clearInterval(id);
   }, []);
+  return lines;
+}
+
+export function HUD() {
+  const fps = useFps();
+  const dataLines = useDataStream();
 
   return (
     <>
@@ -62,13 +60,20 @@ export function HUD() {
         <div>NODE ...... satish.com.np</div>
       </div>
 
-      {/* Top-right: data stream */}
-      <div className="fixed top-4 right-4 md:top-6 md:right-6 z-20 text-[10px] md:text-xs text-terminal-dim font-mono text-right leading-tight pointer-events-none">
+      {/* Top-right: active dynamic telemetry data stream */}
+      <div className="fixed top-4 right-4 md:top-6 md:right-6 z-20 text-[10px] md:text-xs text-terminal-dim font-mono text-right leading-none pointer-events-none flex flex-col gap-1">
         <div className="text-glow text-accent mb-1">// DATA_STREAM</div>
-        <div className="text-primary text-glow text-sm md:text-base mb-2">{hex}</div>
-        {stream.map((s, i) => (
-          <div key={i} style={{ opacity: 1 - i * 0.1 }}>
-            {s}
+        {dataLines.map((line, idx) => (
+          <div
+            key={idx}
+            className={`${
+              idx === 0
+                ? "text-primary text-sm md:text-base font-bold text-glow"
+                : "text-primary/40 text-[8px] md:text-[9.5px] tracking-wide"
+            }`}
+            style={{ textShadow: idx === 0 ? "0 0 5px rgba(0, 255, 136, 0.4)" : "none" }}
+          >
+            {line}
           </div>
         ))}
       </div>
@@ -76,7 +81,7 @@ export function HUD() {
       {/* Bottom-left: brand */}
       <div className="fixed bottom-4 left-4 md:bottom-6 md:left-6 z-20 text-[10px] md:text-xs text-terminal-dim font-mono pointer-events-none">
         <div>SATISH // THE_LAB</div>
-        <div suppressHydrationWarning>v0.1.0-alpha · build {hex ? (parseInt(hex.slice(-4), 16) % 9999).toString().padStart(4, "0") : "0000"}</div>
+        <div>v0.1.0-alpha</div>
       </div>
 
       {/* Corner brackets */}
