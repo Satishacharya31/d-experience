@@ -12,10 +12,12 @@ export type Zone = {
 };
 
 export const ZONES: Zone[] = [
-  { id: "about", label: "ABOUT_TOWER", position: [-22, 0, -22], color: "#00ff88" },
-  { id: "projects", label: "PROJECTS_HUB", position: [22, 0, -22], color: "#00d4ff" },
-  { id: "skills", label: "SKILLS_ARENA", position: [22, 0, 22], color: "#ffb800" },
-  { id: "contact", label: "CONTACT_KIOSK", position: [-22, 0, 22], color: "#ff4477" },
+  // Spread out in asymmetric directions so the world feels organic, not grid-like.
+  // Each building is 45-60 units from spawn, with staggered angles.
+  { id: "about",    label: "ABOUT_TOWER",    position: [-38, 0, -55], color: "#00ff88" },
+  { id: "projects", label: "PROJECTS_HUB",   position: [62,  0, -34], color: "#00d4ff" },
+  { id: "skills",   label: "SKILLS_ARENA",   position: [44,  0,  58], color: "#ffb800" },
+  { id: "contact",  label: "CONTACT_KIOSK",  position: [-58, 0,  38], color: "#ff4477" },
 ];
 
 // ── Shared animated beacon ──────────────────────────────────────────────────

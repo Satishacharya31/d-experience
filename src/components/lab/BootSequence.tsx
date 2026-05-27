@@ -17,21 +17,23 @@ export function BootSequence({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     let cancelled = false;
+    let timerId: any = null;
     let i = 0;
     const next = () => {
       if (cancelled || i >= LINES.length) {
-        setTimeout(() => !cancelled && onDone(), 600);
+        timerId = setTimeout(() => !cancelled && onDone(), 600);
         return;
       }
-      setShown((s) => [...s, LINES[i].t]);
+      const currentLine = LINES[i];
+      setShown((s) => [...s, currentLine.t]);
       setProgress(Math.round(((i + 1) / LINES.length) * 100));
-      const d = LINES[i].d;
       i++;
-      setTimeout(next, d);
+      timerId = setTimeout(next, currentLine.d);
     };
     next();
     return () => {
       cancelled = true;
+      if (timerId) clearTimeout(timerId);
     };
   }, [onDone]);
 

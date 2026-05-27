@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 // Low-poly humanoid built from voxel boxes. Animates legs/arms when moving.
+// Includes a sci-fi blaster on the right arm.
 export function Character({
   groupRef,
   movingRef,
@@ -13,7 +14,8 @@ export function Character({
   const lLeg = useRef<THREE.Mesh>(null!);
   const rLeg = useRef<THREE.Mesh>(null!);
   const lArm = useRef<THREE.Mesh>(null!);
-  const rArm = useRef<THREE.Mesh>(null!);
+  const rArm = useRef<THREE.Group>(null!);
+  const gunGlow = useRef<THREE.Mesh>(null!);
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
@@ -23,11 +25,17 @@ export function Character({
     if (rLeg.current) rLeg.current.rotation.x = -sw;
     if (lArm.current) lArm.current.rotation.x = -sw * 0.7;
     if (rArm.current) rArm.current.rotation.x = sw * 0.7;
+    // Gun barrel glow pulse
+    if (gunGlow.current) {
+      (gunGlow.current.material as THREE.MeshStandardMaterial).emissiveIntensity =
+        1.5 + Math.sin(t * 4) * 0.5;
+    }
   });
 
   const skin = "#7CFFB2";
   const suit = "#0a1a14";
   const accent = "#00ff88";
+  const gunMetal = "#1a2a20";
 
   return (
     <group ref={groupRef} position={[0, 0, 0]}>
@@ -60,16 +68,50 @@ export function Character({
         <meshBasicMaterial color={accent} />
       </mesh>
 
-      {/* arms */}
+      {/* left arm */}
       <group position={[0, 1.35, 0]}>
         <mesh ref={lArm} position={[-0.42, -0.2, 0]} castShadow>
           <boxGeometry args={[0.18, 0.55, 0.18]} />
           <meshStandardMaterial color={suit} />
         </mesh>
-        <mesh ref={rArm} position={[0.42, -0.2, 0]} castShadow>
-          <boxGeometry args={[0.18, 0.55, 0.18]} />
-          <meshStandardMaterial color={suit} />
-        </mesh>
+      </group>
+
+      {/* right arm + GUN */}
+      <group position={[0.42, 1.15, 0]}>
+        <group ref={rArm}>
+          {/* Upper arm */}
+          <mesh position={[0, 0, 0]} castShadow>
+            <boxGeometry args={[0.18, 0.55, 0.18]} />
+            <meshStandardMaterial color={suit} />
+          </mesh>
+
+          {/* ── Sci-fi blaster ── */}
+          {/* Main body */}
+          <mesh position={[0.08, -0.3, 0.22]} castShadow>
+            <boxGeometry args={[0.12, 0.16, 0.5]} />
+            <meshStandardMaterial color={gunMetal} emissive={accent} emissiveIntensity={0.1} metalness={0.8} roughness={0.2} />
+          </mesh>
+          {/* Barrel */}
+          <mesh position={[0.08, -0.3, 0.52]}>
+            <boxGeometry args={[0.06, 0.08, 0.28]} />
+            <meshStandardMaterial color="#0a1208" emissive={accent} emissiveIntensity={0.15} metalness={0.9} roughness={0.1} />
+          </mesh>
+          {/* Barrel tip glow */}
+          <mesh ref={gunGlow} position={[0.08, -0.3, 0.68]}>
+            <boxGeometry args={[0.05, 0.05, 0.04]} />
+            <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={1.5} toneMapped={false} />
+          </mesh>
+          {/* Energy cell */}
+          <mesh position={[0.08, -0.36, 0.18]}>
+            <boxGeometry args={[0.08, 0.06, 0.12]} />
+            <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.8} toneMapped={false} />
+          </mesh>
+          {/* Side accent stripe */}
+          <mesh position={[0.15, -0.3, 0.22]}>
+            <boxGeometry args={[0.01, 0.05, 0.45]} />
+            <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={1.0} toneMapped={false} />
+          </mesh>
+        </group>
       </group>
 
       {/* head */}

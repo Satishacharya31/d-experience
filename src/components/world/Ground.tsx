@@ -111,16 +111,6 @@ export function Ground({
     }
   });
 
-  // Stone path tiles around spawn (fixed landmarks).
-  const pathTiles = useMemo(() => {
-    const tiles: { x: number; z: number }[] = [];
-    for (let i = -20; i <= 20; i += 2) {
-      tiles.push({ x: i, z: 0 });
-      tiles.push({ x: 0, z: i });
-    }
-    return tiles;
-  }, []);
-
   return (
     <>
       {/* Infinite-looking grass: large plane that follows the player */}
@@ -128,14 +118,6 @@ export function Ground({
         <planeGeometry args={[400, 400, 1, 1]} />
         <meshStandardMaterial color="#2d4a2a" roughness={1} />
       </mesh>
-
-      {/* Spawn-area path tiles */}
-      {pathTiles.map((p, i) => (
-        <mesh key={i} rotation-x={-Math.PI / 2} position={[p.x, 0.012, p.z]}>
-          <planeGeometry args={[1.6, 1.6]} />
-          <meshStandardMaterial color="#5d5b52" roughness={0.95} />
-        </mesh>
-      ))}
 
       {/* Streamed chunks (trees, rocks, dirt patches) */}
       {chunks.map((c) => <Chunk key={c.key} data={c} />)}

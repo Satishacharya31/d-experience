@@ -1,9 +1,14 @@
-// Chunk-based infinite world generation.
-// Each chunk is CHUNK_SIZE x CHUNK_SIZE world units. Contents are deterministic
-// from chunk coordinates, so the same chunk always regenerates identically.
+// Chunk-based world generation with seamless wrapping.
+// The world is a WRAP_CHUNKS × WRAP_CHUNKS torus — when the player
+// crosses ±WRAP world units the position snaps back, and chunk
+// coordinates are folded with modulo so the same chunk data appears
+// on both sides.  This makes the world feel infinite while only ever
+// loading a small, bounded set of chunks.
 
 export const CHUNK_SIZE = 40;
-export const VIEW_RADIUS = 3; // chunks around player to keep loaded
+export const VIEW_RADIUS = 4; // chunks visible around player (increased for smoother streaming)
+// Must match VoxelWorld WRAP / CHUNK_SIZE (120 / 40 = 3 half-torus size)
+const WRAP_CHUNKS = 6; // total torus width in chunks (2 × 120 / 40)
 
 export type TreeInstance = { x: number; z: number; scale: number; tilt: number; kind: 0 | 1 | 2; rot: number };
 export type RockInstance = { x: number; z: number; scale: number; rot: number };
@@ -19,12 +24,12 @@ export type ChunkData = {
   obstacles: Obstacle[];
 };
 
-// Central building footprints (kept clear in every chunk).
+// Central building footprints (kept clear).
 const BUILDING_SPOTS: [number, number, number][] = [
-  [-22, -22, 9],
-  [22, -22, 9],
-  [22, 22, 9],
-  [-22, 22, 9],
+  [-38, -55, 10],
+  [62,  -34, 10],
+  [44,   58, 10],
+  [-58,  38, 10],
 ];
 
 // Mulberry32 deterministic RNG.
@@ -40,26 +45,34 @@ function rng(seed: number) {
 }
 
 function chunkSeed(cx: number, cz: number) {
-  // Stable hash from chunk coords.
   const a = (cx * 374761393 + cz * 668265263) | 0;
   return (a ^ (a >>> 13)) >>> 0;
 }
 
+// Wrap chunk coordinates into the canonical torus range [0, WRAP_CHUNKS).
+// This ensures chunk (-1, 0) and chunk (WRAP_CHUNKS-1, 0) share the same data.
+function wrapChunk(c: number): number {
+  return ((c % WRAP_CHUNKS) + WRAP_CHUNKS) % WRAP_CHUNKS;
+}
+
 const isBlocked = (x: number, z: number, pad: number) =>
-  // Keep spawn clear
-  (Math.hypot(x, z) < 8 + pad) ||
   BUILDING_SPOTS.some(([bx, bz, br]) => Math.hypot(x - bx, z - bz) < br + pad);
 
 const cache = new Map<string, ChunkData>();
 
-export function getChunk(cx: number, cz: number): ChunkData {
-  const key = `${cx},${cz}`;
+export function getChunk(rawCx: number, rawCz: number): ChunkData {
+  // Canonical (wrapped) chunk coords drive data generation.
+  const cx = wrapChunk(rawCx);
+  const cz = wrapChunk(rawCz);
+  // But the actual world position uses the raw coords so items sit in the right place.
+  const key = `${rawCx},${rawCz}`;
   const hit = cache.get(key);
   if (hit) return hit;
 
   const r = rng(chunkSeed(cx, cz));
-  const baseX = cx * CHUNK_SIZE;
-  const baseZ = cz * CHUNK_SIZE;
+  // World-space base position uses raw coords for correct placement.
+  const baseX = rawCx * CHUNK_SIZE;
+  const baseZ = rawCz * CHUNK_SIZE;
 
   const trees: TreeInstance[] = [];
   const rocks: RockInstance[] = [];
@@ -107,7 +120,7 @@ export function getChunk(cx: number, cz: number): ChunkData {
     ...rocks.map((q) => ({ x: q.x, z: q.z, r: 0.9 * q.scale })),
   ];
 
-  const data: ChunkData = { key, cx, cz, trees, rocks, patches, obstacles };
+  const data: ChunkData = { key, cx: rawCx, cz: rawCz, trees, rocks, patches, obstacles };
   cache.set(key, data);
   return data;
 }
@@ -127,7 +140,7 @@ export function visibleChunks(px: number, pz: number): ChunkData[] {
   return out;
 }
 
-// Static obstacles for fixed buildings (always-on collision regardless of chunk).
+// Static obstacles for fixed buildings (always-on collision).
 export const BUILDING_OBSTACLES: Obstacle[] = BUILDING_SPOTS.map(([x, z]) => ({
   x, z, r: 3.2,
 }));
