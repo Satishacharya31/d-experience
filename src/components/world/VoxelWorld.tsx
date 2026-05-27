@@ -201,7 +201,7 @@ function Player({
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
       if ((e.buttons & 1) !== 0) {
-        yaw.current -= e.movementX * 0.005;
+        yaw.current += e.movementX * 0.005;
       }
     };
     window.addEventListener("pointermove", onMove);
