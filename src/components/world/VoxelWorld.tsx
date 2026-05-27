@@ -8,6 +8,9 @@ import { Shards } from "./Shards";
 import { Joystick } from "./Joystick";
 import { gameStore } from "@/lib/gameStore";
 import { audio } from "@/lib/audio";
+import { OBSTACLES, WORLD_HALF } from "@/lib/worldObstacles";
+
+const PLAYER_RADIUS = 0.45;
 
 const SPEED = 6;
 const JUMP = 7;
@@ -40,72 +43,87 @@ function Player({
   const group = useRef<THREE.Group | null>(null);
   const moving = useRef(false);
   const velY = useRef(0);
-  const camYaw = useRef(0);         // camera orbit direction (radians)
-  const charYaw = useRef(0);        // character facing direction (radians)
+  // Single yaw drives BOTH character facing and camera direction (third-person follow).
+  const yaw = useRef(0);
   const pos = useRef(new THREE.Vector3(0, 0, 0));
   const camTarget = useRef(new THREE.Vector3());
   const camDesired = useRef(new THREE.Vector3());
   const lastZone = useRef<ZoneId | null>(null);
   const jumpsLeft = useRef(2);
   const wasSpace = useRef(false);
-  const walkTime = useRef(0);       // for camera bob
+  const walkTime = useRef(0);
   const { camera } = useThree();
+
+  // Resolve collisions: push player out of any overlapping cylindrical obstacle.
+  const resolveCollisions = (px: number, pz: number): [number, number] => {
+    let x = px, z = pz;
+    for (let i = 0; i < OBSTACLES.length; i++) {
+      const o = OBSTACLES[i];
+      const dx = x - o.x;
+      const dz = z - o.z;
+      const dist = Math.hypot(dx, dz);
+      const minDist = o.r + PLAYER_RADIUS;
+      if (dist > 0 && dist < minDist) {
+        const push = (minDist - dist) / dist;
+        x += dx * push;
+        z += dz * push;
+      } else if (dist === 0) {
+        x += minDist;
+      }
+    }
+    return [x, z];
+  };
 
   useFrame((_, delta) => {
     const d = Math.min(delta, 0.05);
 
-    // ── Input: keyboard + touch joystick ──
-    // inputZ: +1 = forward (W), -1 = backward (S) relative to camera
-    // inputX: +1 = strafe right (D), -1 = strafe left (A) relative to camera
-    let inputX = 0, inputZ = 0;
-    if (keys.current.w) inputZ += 1;   // forward
-    if (keys.current.s) inputZ -= 1;   // backward
-    if (keys.current.a) inputX -= 1;   // strafe left
-    if (keys.current.d) inputX += 1;   // strafe right
+    // ── Input: WASD relative to CHARACTER facing (yaw) ──
+    //  W = forward (in facing direction)
+    //  S = backward
+    //  A = strafe LEFT
+    //  D = strafe RIGHT
+    let inputF = 0; // forward axis
+    let inputR = 0; // right axis (strafe)
+    if (keys.current.w) inputF += 1;
+    if (keys.current.s) inputF -= 1;
+    if (keys.current.d) inputR += 1;
+    if (keys.current.a) inputR -= 1;
 
-    // Touch joystick: x = left/right, y = forward/back
     if (touchJoy.current.x !== 0 || touchJoy.current.y !== 0) {
-      inputX = touchJoy.current.x;
-      inputZ = touchJoy.current.y;
+      inputR = touchJoy.current.x;
+      inputF = touchJoy.current.y;
     }
 
-    const inputLen = Math.hypot(inputX, inputZ);
+    const inputLen = Math.hypot(inputF, inputR);
     moving.current = inputLen > 0.01;
 
     if (moving.current) {
-      // Normalize input
-      const nx = inputX / inputLen;
-      const nz = inputZ / inputLen;
+      const nf = inputF / inputLen;
+      const nr = inputR / inputLen;
 
-      // Compute camera forward and right vectors relative to camYaw
-      const fwdX = Math.sin(camYaw.current);
-      const fwdZ = Math.cos(camYaw.current);
-      const rightX = Math.cos(camYaw.current);
-      const rightZ = -Math.sin(camYaw.current);
+      // Forward vector for yaw=0 should be +Z (matches camera-at-(-Z) looking at origin).
+      // fwd = (sin(yaw), cos(yaw)),  right = (cos(yaw), -sin(yaw))
+      const fwdX = Math.sin(yaw.current);
+      const fwdZ = Math.cos(yaw.current);
+      const rightX = Math.cos(yaw.current);
+      const rightZ = -Math.sin(yaw.current);
 
-      // World-space movement relative to camera perspective
-      const worldMoveX = fwdX * nz + rightX * nx;
-      const worldMoveZ = fwdZ * nz + rightZ * nx;
+      const moveX = fwdX * nf + rightX * nr;
+      const moveZ = fwdZ * nf + rightZ * nr;
 
-      pos.current.x += worldMoveX * SPEED * d;
-      pos.current.z += worldMoveZ * SPEED * d;
+      const nextX = pos.current.x + moveX * SPEED * d;
+      const nextZ = pos.current.z + moveZ * SPEED * d;
+      const [rx, rz] = resolveCollisions(nextX, nextZ);
+      pos.current.x = rx;
+      pos.current.z = rz;
 
-      // Smoothly rotate the character model to face the direction of movement
-      const targetAngle = Math.atan2(worldMoveX, worldMoveZ);
-      let diff = targetAngle - charYaw.current;
-      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      charYaw.current += diff * Math.min(1, d * 12); // smooth turn speed
-
-      // Update walk time for camera bob
       walkTime.current += d * 9;
     }
 
-    // Character model visually faces the smoothly lerped charYaw direction
-    if (group.current) {
-      group.current.rotation.y = charYaw.current;
-    }
+    // Character faces yaw (the camera-aligned facing direction).
+    if (group.current) group.current.rotation.y = yaw.current;
 
-    // ── Jump / gravity with double jump ──
+    // ── Jump / gravity ──
     const onGround = pos.current.y <= 0.001;
     if (onGround) jumpsLeft.current = 2;
 
@@ -133,30 +151,31 @@ function Player({
     pos.current.y += velY.current * d;
     if (pos.current.y < 0) { pos.current.y = 0; velY.current = 0; }
 
-    // ── World clamp ──
-    pos.current.x = THREE.MathUtils.clamp(pos.current.x, -52, 52);
-    pos.current.z = THREE.MathUtils.clamp(pos.current.z, -52, 52);
+    // World clamp
+    pos.current.x = THREE.MathUtils.clamp(pos.current.x, -WORLD_HALF, WORLD_HALF);
+    pos.current.z = THREE.MathUtils.clamp(pos.current.z, -WORLD_HALF, WORLD_HALF);
 
     if (group.current) group.current.position.copy(pos.current);
     playerPos.current.copy(pos.current);
 
-    // ── Camera (3rd-person, orbits player based on camYaw) ──
-    const camDist = 10;
-    const camHeight = 5.5;
-    // Camera bob when walking
-    const bobY = moving.current ? Math.sin(walkTime.current) * 0.06 : 0;
-    const bobX = moving.current ? Math.cos(walkTime.current * 0.5) * 0.03 : 0;
+    // ── Camera: always behind the character, follows facing ──
+    const camDist = 7.5;
+    const camHeight = 3.8;
+    const bobY = moving.current ? Math.sin(walkTime.current) * 0.05 : 0;
 
-    // Position camera BEHIND the player relative to the camera orbit yaw
     camDesired.current.set(
-      pos.current.x - Math.sin(camYaw.current) * camDist + bobX,
+      pos.current.x - Math.sin(yaw.current) * camDist,
       pos.current.y + camHeight + bobY,
-      pos.current.z - Math.cos(camYaw.current) * camDist,
+      pos.current.z - Math.cos(yaw.current) * camDist,
     );
-    camera.position.lerp(camDesired.current, Math.min(1, d * 8)); // smooth camera lag lerp
+    camera.position.lerp(camDesired.current, Math.min(1, d * 9));
 
-    // Look at character's head height
-    camTarget.current.set(pos.current.x, pos.current.y + 1.4, pos.current.z);
+    // Look slightly ahead of the character so the view feels game-like.
+    camTarget.current.set(
+      pos.current.x + Math.sin(yaw.current) * 2,
+      pos.current.y + 1.5,
+      pos.current.z + Math.cos(yaw.current) * 2,
+    );
     camera.lookAt(camTarget.current);
 
     // ── Zone detection ──
@@ -177,12 +196,12 @@ function Player({
     }
   });
 
-  // ── Mouse drag → rotate camera yaw ──
+  // ── Mouse drag → rotate CHARACTER+CAMERA yaw (third-person follow) ──
+  // Drag right = view turns right (yaw increases, character turns right).
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
-      // Only rotate camera when dragging (left mouse button held)
       if ((e.buttons & 1) !== 0) {
-        camYaw.current -= e.movementX * 0.005;
+        yaw.current += e.movementX * 0.005;
       }
     };
     window.addEventListener("pointermove", onMove);
@@ -349,7 +368,7 @@ export function VoxelWorld({
                 userSelect: "none",
               }}
             >
-              WASD / ARROWS TO MOVE · DRAG TO LOOK
+              WASD MOVE · DRAG TO TURN · SPACE JUMP · E ENTER
             </div>
           </div>
         )}
