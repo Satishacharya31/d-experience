@@ -30,10 +30,14 @@ export function ZonePanel({ zone, onClose }: { zone: ZoneId; onClose: () => void
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-md p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
       <div
         className="relative w-full max-w-2xl border border-primary bg-background/95 text-primary font-mono p-6 md:p-8 animate-in zoom-in-95 duration-250 ease-out"
         style={{ boxShadow: "0 0 40px oklch(0.88 0.22 145 / 0.35)" }}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5 text-xs md:text-sm">
           <span className="text-glow font-bold">{titles[zone]}</span>

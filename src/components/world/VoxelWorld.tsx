@@ -290,11 +290,16 @@ function Player({
     const yaw = camYaw.current;
     const pitch = mouseDragPitch.current; // vertical aim pitch (-0.6 to 0.8)
 
+    // Mobile: tighter camera (closer + slightly raised) for phone screens
+    const isMobileDevice = navigator.maxTouchPoints > 0;
+    const camDist = isMobileDevice ? 7.0 : 10.0;
+    const camHeightOffset = isMobileDevice ? 3.5 : 4.0;
+
     // Camera sits behind the player, orbiting horizontally
-    const camX = pos.current.x - Math.sin(yaw) * 10.0 + bobX;
-    const camZ = pos.current.z - Math.cos(yaw) * 10.0;
+    const camX = pos.current.x - Math.sin(yaw) * camDist + bobX;
+    const camZ = pos.current.z - Math.cos(yaw) * camDist;
     // Camera height shifts slightly with pitch to frame the player beautifully without clipping ground
-    const camY = pos.current.y + 4.0 - pitch * 3.5 + bobY;
+    const camY = pos.current.y + camHeightOffset - pitch * 3.5 + bobY;
 
     camDesired.current.set(camX, camY, camZ);
     camera.position.lerp(camDesired.current, Math.min(1, d * 8));
@@ -361,6 +366,19 @@ export function VoxelWorld({
 
   useEffect(() => {
     setIsTouch(navigator.maxTouchPoints > 0 || "ontouchstart" in window);
+  }, []);
+
+  // Touch camera drag — fired by Joystick's right-side touch tracker
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { dx, dy } = (e as CustomEvent<{ dx: number; dy: number }>).detail;
+      mouseDragYaw.current -= dx * 0.012;
+      mouseDragPitch.current -= dy * 0.012;
+      mouseDragPitch.current = Math.max(-0.6, Math.min(0.8, mouseDragPitch.current));
+      mouseDragYaw.current = Math.max(-2.5, Math.min(2.5, mouseDragYaw.current));
+    };
+    window.addEventListener("touch:cameradrag", handler as EventListener);
+    return () => window.removeEventListener("touch:cameradrag", handler as EventListener);
   }, []);
 
   // ── Keyboard ──
@@ -481,8 +499,8 @@ export function VoxelWorld({
 
   return (
     <>
-      <div className="absolute inset-0 z-0" style={{ cursor: "crosshair" }}>
-        <Canvas shadows camera={{ position: [0, 6, 10], fov: 60 }} dpr={[1, 2]}>
+      <div className="absolute inset-0 z-0" style={{ cursor: isTouch ? "default" : "crosshair" }}>
+        <Canvas shadows camera={{ position: [0, 6, 10], fov: isTouch ? 55 : 60 }} dpr={[1, 1.5]}>
           <color attach="background" args={["#04070a"]} />
           <fog attach="fog" args={["#0c1a14", 60, 200]} />
           <ambientLight intensity={0.35} />

@@ -11,12 +11,27 @@ interface JoystickProps {
   onInteract: () => void;
 }
 
+/** Apply dead-zone + quadratic curve to a raw -1..1 axis value */
+function applyDeadzone(raw: number, dead = 0.12): number {
+  const sign = raw >= 0 ? 1 : -1;
+  const abs = Math.abs(raw);
+  if (abs < dead) return 0;
+  // Rescale to 0..1 outside dead-zone, then square for smoother feel
+  const rescaled = (abs - dead) / (1 - dead);
+  return sign * rescaled * rescaled;
+}
+
 /** Premium cyberpunk virtual joystick + action buttons for touch screens */
 export function Joystick({ onMove, onJump, onInteract }: JoystickProps) {
   const stickRef = useRef<HTMLDivElement>(null);
   const baseRef = useRef<HTMLDivElement>(null);
   const touchIdRef = useRef<number | null>(null);
   const activeRef = useRef(false);
+
+  // Right-side drag for camera look
+  const rightTouchIdRef = useRef<number | null>(null);
+  const rightLastXRef = useRef(0);
+  const rightLastYRef = useRef(0);
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
@@ -48,24 +63,21 @@ export function Joystick({ onMove, onJump, onInteract }: JoystickProps) {
       }
       if (clientX === null || clientY === null) return;
 
-      let dx = clientX - cx;
-      let dy = clientY - cy;
-
-      // Remap touch coordinates to landscape if the screen is physically in portrait
-      const isPortrait = window.innerHeight > window.innerWidth;
-      if (isPortrait) {
-        const temp = dx;
-        dx = -dy;
-        dy = temp;
-      }
+      const dx = clientX - cx;
+      const dy = clientY - cy;
 
       const maxR = rect.width / 2 - 18;
       const dist = Math.hypot(dx, dy);
       const clamped = Math.min(dist, maxR);
       const angle = Math.atan2(dy, dx);
 
-      const nx = (Math.cos(angle) * clamped) / maxR;
-      const ny = (Math.sin(angle) * clamped) / maxR;
+      // Raw normalized values
+      const rawX = (Math.cos(angle) * clamped) / maxR;
+      const rawY = (Math.sin(angle) * clamped) / maxR;
+
+      // Apply dead-zone + curve for even feel
+      const nx = applyDeadzone(rawX);
+      const ny = applyDeadzone(rawY);
 
       if (stickRef.current) {
         stickRef.current.style.transform = `translate(calc(-50% + ${Math.cos(angle) * clamped}px), calc(-50% + ${Math.sin(angle) * clamped}px))`;
@@ -102,15 +114,63 @@ export function Joystick({ onMove, onJump, onInteract }: JoystickProps) {
     return () => document.removeEventListener("touchmove", prevent);
   }, []);
 
+  // Right-half screen touch → camera drag
+  useEffect(() => {
+    const onStart = (e: TouchEvent) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        // Only track touches on right 55% of screen (and not already joystick)
+        if (t.clientX > window.innerWidth * 0.45 && rightTouchIdRef.current === null) {
+          rightTouchIdRef.current = t.identifier;
+          rightLastXRef.current = t.clientX;
+          rightLastYRef.current = t.clientY;
+        }
+      }
+    };
+    const onMove = (e: TouchEvent) => {
+      if (rightTouchIdRef.current === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === rightTouchIdRef.current) {
+          const dx = t.clientX - rightLastXRef.current;
+          const dy = t.clientY - rightLastYRef.current;
+          rightLastXRef.current = t.clientX;
+          rightLastYRef.current = t.clientY;
+          // Dispatch as a synthetic camera drag event
+          window.dispatchEvent(new CustomEvent("touch:cameradrag", {
+            detail: { dx, dy }
+          }));
+          break;
+        }
+      }
+    };
+    const onEnd = (e: TouchEvent) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === rightTouchIdRef.current) {
+          rightTouchIdRef.current = null;
+          break;
+        }
+      }
+    };
+    window.addEventListener("touchstart", onStart, { passive: true });
+    window.addEventListener("touchmove", onMove, { passive: true });
+    window.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", onStart);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+    };
+  }, []);
+
   return (
     <>
       <style>{`
         :root {
-          --joy-base: min(17vmin, 110px);
-          --joy-knob: min(6vmin, 38px);
-          --joy-btn:  min(11vmin, 65px);
-          --joy-pad:  min(3vmin, 16px);
-          --joy-gap:  min(2vmin, 12px);
+          --joy-base: min(18vw, 120px);
+          --joy-knob: min(7vw, 44px);
+          --joy-btn:  min(14vw, 72px);
+          --joy-pad:  max(12px, 2vw);
+          --joy-gap:  max(8px, 1.5vw);
         }
       `}</style>
 
@@ -131,10 +191,10 @@ export function Joystick({ onMove, onJump, onInteract }: JoystickProps) {
               height: "var(--joy-base)",
               borderRadius: "50%",
               background:
-                "radial-gradient(circle, rgba(0,255,136,0.03) 0%, rgba(0,255,136,0.01) 70%, transparent 100%)",
-              border: "1px solid rgba(0,255,136,0.18)",
+                "radial-gradient(circle, rgba(0,255,136,0.05) 0%, rgba(0,255,136,0.01) 70%, transparent 100%)",
+              border: "1.5px solid rgba(0,255,136,0.25)",
               position: "relative",
-              boxShadow: "0 0 12px rgba(0,255,136,0.05), inset 0 0 12px rgba(0,255,136,0.02)",
+              boxShadow: "0 0 16px rgba(0,255,136,0.08), inset 0 0 12px rgba(0,255,136,0.03)",
               backdropFilter: "blur(2px)",
             }}
           >
@@ -143,8 +203,8 @@ export function Joystick({ onMove, onJump, onInteract }: JoystickProps) {
               position: "absolute", inset: 0, display: "flex",
               alignItems: "center", justifyContent: "center", pointerEvents: "none",
             }}>
-              <div style={{ width: "100%", height: 1, background: "rgba(0,255,136,0.08)", position: "absolute" }} />
-              <div style={{ width: 1, height: "100%", background: "rgba(0,255,136,0.08)", position: "absolute" }} />
+              <div style={{ width: "100%", height: 1, background: "rgba(0,255,136,0.1)", position: "absolute" }} />
+              <div style={{ width: 1, height: "100%", background: "rgba(0,255,136,0.1)", position: "absolute" }} />
             </div>
             {/* Corner tick marks */}
             {[0, 90, 180, 270].map((deg) => (
@@ -154,9 +214,9 @@ export function Joystick({ onMove, onJump, onInteract }: JoystickProps) {
                   position: "absolute",
                   top: "50%",
                   left: "50%",
-                  width: 6,
+                  width: 7,
                   height: 2,
-                  background: "rgba(0,255,136,0.2)",
+                  background: "rgba(0,255,136,0.25)",
                   transformOrigin: "left center",
                   transform: `rotate(${deg}deg) translateX(calc(var(--joy-base) / 2.75)) translateY(-50%)`,
                 }}
@@ -174,9 +234,9 @@ export function Joystick({ onMove, onJump, onInteract }: JoystickProps) {
                 height: "var(--joy-knob)",
                 borderRadius: "50%",
                 background:
-                  "radial-gradient(circle at 35% 35%, rgba(0,255,136,0.3) 0%, rgba(0,180,80,0.12) 60%, rgba(0,80,40,0.05) 100%)",
-                border: "1px solid rgba(0,255,136,0.45)",
-                boxShadow: "0 0 10px rgba(0,255,136,0.2)",
+                  "radial-gradient(circle at 35% 35%, rgba(0,255,136,0.35) 0%, rgba(0,180,80,0.15) 60%, rgba(0,80,40,0.05) 100%)",
+                border: "1.5px solid rgba(0,255,136,0.55)",
+                boxShadow: "0 0 12px rgba(0,255,136,0.25)",
                 transition: "box-shadow 0.1s",
                 pointerEvents: "none",
               }}
@@ -184,11 +244,11 @@ export function Joystick({ onMove, onJump, onInteract }: JoystickProps) {
           </div>
           <div style={{
             textAlign: "center",
-            fontSize: "min(1.8vmin, 9px)",
-            color: "rgba(0,255,136,0.3)",
+            fontSize: 9,
+            color: "rgba(0,255,136,0.35)",
             fontFamily: "monospace",
             marginTop: 4,
-            letterSpacing: "0.12em",
+            letterSpacing: "0.1em",
           }}>
             MOVE
           </div>
@@ -209,11 +269,11 @@ export function Joystick({ onMove, onJump, onInteract }: JoystickProps) {
               height: "var(--joy-btn)",
               borderRadius: "50%",
               background:
-                "radial-gradient(circle at 35% 35%, rgba(0,212,255,0.05) 0%, rgba(0,80,120,0.01) 70%)",
-              border: "1px solid rgba(0,212,255,0.22)",
-              color: "rgba(0,212,255,0.5)",
+                "radial-gradient(circle at 35% 35%, rgba(0,212,255,0.07) 0%, rgba(0,80,120,0.02) 70%)",
+              border: "1.5px solid rgba(0,212,255,0.28)",
+              color: "rgba(0,212,255,0.65)",
               fontFamily: "monospace",
-              fontSize: "min(1.6vmin, 9px)",
+              fontSize: 9,
               fontWeight: "bold",
               letterSpacing: "0.1em",
               cursor: "pointer",
@@ -221,8 +281,8 @@ export function Joystick({ onMove, onJump, onInteract }: JoystickProps) {
               backdropFilter: "blur(2px)",
             }}
           >
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-              <span style={{ fontSize: "min(2.5vmin, 16px)" }}>▲</span>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <span style={{ fontSize: 18 }}>▲</span>
               <span>JUMP</span>
             </div>
           </button>
@@ -237,11 +297,11 @@ export function Joystick({ onMove, onJump, onInteract }: JoystickProps) {
               height: "var(--joy-btn)",
               borderRadius: "50%",
               background:
-                "radial-gradient(circle at 35% 35%, rgba(255,68,119,0.05) 0%, rgba(120,0,50,0.01) 70%)",
-              border: "1px solid rgba(255,68,119,0.22)",
-              color: "rgba(255,68,119,0.5)",
+                "radial-gradient(circle at 35% 35%, rgba(255,68,119,0.07) 0%, rgba(120,0,50,0.02) 70%)",
+              border: "1.5px solid rgba(255,68,119,0.28)",
+              color: "rgba(255,68,119,0.65)",
               fontFamily: "monospace",
-              fontSize: "min(1.6vmin, 9px)",
+              fontSize: 9,
               fontWeight: "bold",
               letterSpacing: "0.1em",
               cursor: "pointer",
@@ -249,11 +309,28 @@ export function Joystick({ onMove, onJump, onInteract }: JoystickProps) {
               backdropFilter: "blur(2px)",
             }}
           >
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-              <span style={{ fontSize: "min(2vmin, 12px)" }}>⬡</span>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <span style={{ fontSize: 14 }}>⬡</span>
               <span>ENTER</span>
             </div>
           </button>
+        </div>
+
+        {/* ── Center-right hint: drag to look ── */}
+        <div style={{
+          position: "absolute",
+          right: "var(--joy-pad)",
+          top: "50%",
+          transform: "translateY(-50%)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 4,
+          pointerEvents: "none",
+          opacity: 0.25,
+        }}>
+          <div style={{ fontSize: 18, color: "rgba(0,255,136,0.8)" }}>⟳</div>
+          <div style={{ fontSize: 8, color: "rgba(0,255,136,0.8)", fontFamily: "monospace", letterSpacing: "0.08em" }}>DRAG<br/>LOOK</div>
         </div>
       </div>
     </>

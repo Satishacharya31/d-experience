@@ -11,7 +11,6 @@ import { LevelUpOverlay } from "@/components/lab/LevelUpOverlay";
 import type { ZoneId } from "@/components/world/Buildings";
 import { gameStore } from "@/lib/gameStore";
 import { audio } from "@/lib/audio";
-import { useFullscreen } from "@/hooks/useFullscreen";
 
 const VoxelWorld = lazy(() =>
   import("@/components/world/VoxelWorld").then((m) => ({ default: m.VoxelWorld })),
@@ -66,20 +65,7 @@ function Index() {
   const [openZone, setOpenZone] = useState<ZoneId | null>(null);
   const [cliOpen, setCliOpen] = useState(false);
   const [levelUpQueue, setLevelUpQueue] = useState<number[]>([]);
-  const [showFullscreenHint, setShowFullscreenHint] = useState(false);
   const interactRef = useRef(false);
-  const { isFullscreen, requestFullscreen } = useFullscreen();
-
-  // Show fullscreen hint briefly on touch devices
-  useEffect(() => {
-    const isTouch = navigator.maxTouchPoints > 0 || "ontouchstart" in window;
-    if (isTouch && !isFullscreen) {
-      const t = setTimeout(() => setShowFullscreenHint(true), 2000);
-      const hide = setTimeout(() => setShowFullscreenHint(false), 7000);
-      return () => { clearTimeout(t); clearTimeout(hide); };
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const handleToggleCli = useCallback(() => {
     setCliOpen((v) => {
@@ -187,39 +173,14 @@ function Index() {
 
       {!booted && <BootSequence onDone={() => setBooted(true)} />}
 
-      {/* ── Fullscreen nudge button (touch only, fades after a few seconds) ── */}
-      {showFullscreenHint && !isFullscreen && (
-        <button
-          onClick={() => { requestFullscreen(); setShowFullscreenHint(false); }}
-          onTouchStart={(e) => { e.preventDefault(); requestFullscreen(); setShowFullscreenHint(false); }}
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] pointer-events-auto select-none"
-          style={{
-            background: "rgba(0,255,136,0.07)",
-            border: "1px solid rgba(0,255,136,0.3)",
-            borderRadius: 8,
-            padding: "10px 20px",
-            color: "rgba(0,255,136,0.85)",
-            fontFamily: "monospace",
-            fontSize: 11,
-            letterSpacing: "0.15em",
-            backdropFilter: "blur(8px)",
-            boxShadow: "0 0 24px rgba(0,255,136,0.15)",
-            animation: "pulse 2s ease-in-out infinite",
-            cursor: "pointer",
-          }}
-        >
-          ⛶ TAP FOR FULLSCREEN
-        </button>
-      )}
-
-      {/* ── Viewport & orientation styles ── */}
+      {/* ── Viewport styles ── */}
       <style>{`
         html, body {
           width: 100%;
           height: 100%;
           overflow: hidden;
           touch-action: none;
-          /* iOS safe area insets — fills notch/home-bar area with game bg */
+          /* iOS safe area insets */
           padding-top: env(safe-area-inset-top);
           padding-bottom: env(safe-area-inset-bottom);
           padding-left: env(safe-area-inset-left);
@@ -228,7 +189,7 @@ function Index() {
           background: #04070a;
         }
 
-        /* Canvas container: fills full screen in landscape */
+        /* Canvas container always fills full viewport */
         .world-canvas-container {
           position: fixed;
           top: 0;
@@ -236,25 +197,6 @@ function Index() {
           width: 100vw;
           height: 100vh;
           overflow: hidden;
-        }
-
-        /* Fullscreen: canvas expands to cover notch/status bar */
-        :fullscreen .world-canvas-container,
-        :-webkit-full-screen .world-canvas-container {
-          width: 100vw;
-          height: 100vh;
-        }
-
-        /* Portrait: rotate only the 3D canvas 90deg so it appears as landscape */
-        @media (orientation: portrait) {
-          .world-canvas-container {
-            top: 50%;
-            left: 50%;
-            width: 100vh;
-            height: 100vw;
-            transform: translate(-50%, -50%) rotate(90deg);
-            transform-origin: center center;
-          }
         }
       `}</style>
     </main>
