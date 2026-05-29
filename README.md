@@ -85,4 +85,3 @@ bun run preview
 - `build` - Full build script running `build.mjs`.
 - `lint` - Runs ESLint to check for code issues.
 - `format` - Uses Prettier to format source code.
-
