@@ -400,10 +400,20 @@ export function VoxelWorld({
     };
     const onMouseMove = (e: MouseEvent) => {
       if (e.buttons !== 1) return; // only when left button held
-      const dx = e.clientX - lastMouseX.current;
-      const dy = e.clientY - lastMouseY.current;
+      let dx = e.clientX - lastMouseX.current;
+      let dy = e.clientY - lastMouseY.current;
       lastMouseX.current = e.clientX;
       lastMouseY.current = e.clientY;
+
+      // Remap touch drag coordinates to landscape if physically in portrait orientation
+      const isPortrait = window.innerHeight > window.innerWidth;
+      const isTouch = navigator.maxTouchPoints > 0 || "ontouchstart" in window;
+      if (isTouch && isPortrait) {
+        const temp = dx;
+        dx = -dy;
+        dy = temp;
+      }
+
       if (Math.abs(dx) > 1.5 || Math.abs(dy) > 1.5) {
         isDragging.current = true;
       }

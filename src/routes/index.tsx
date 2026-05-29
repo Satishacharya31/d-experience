@@ -11,7 +11,6 @@ import { LevelUpOverlay } from "@/components/lab/LevelUpOverlay";
 import type { ZoneId } from "@/components/world/Buildings";
 import { gameStore } from "@/lib/gameStore";
 import { audio } from "@/lib/audio";
-import { OrientationPrompt } from "@/components/ui/OrientationPrompt";
 
 const VoxelWorld = lazy(() =>
   import("@/components/world/VoxelWorld").then((m) => ({ default: m.VoxelWorld })),
@@ -140,7 +139,7 @@ function Index() {
   const currentLevelUp = levelUpQueue[0] ?? null;
 
   return (
-    <main className="relative min-h-screen bg-background overflow-hidden scanlines noise">
+    <main className="relative min-h-screen bg-background overflow-hidden scanlines noise mobile-landscape-mode">
       {mounted && (
         <Suspense fallback={null}>
           <VoxelWorld
@@ -161,7 +160,6 @@ function Index() {
       {mounted && cliOpen && <CLI />}
       {openZone && <ZonePanel zone={openZone} onClose={() => setOpenZone(null)} />}
       {mounted && <Cursor />}
-      {mounted && <OrientationPrompt />}
 
       {/* Level-up cinematic (show one at a time from queue) */}
       {currentLevelUp !== null && (
@@ -169,6 +167,22 @@ function Index() {
       )}
 
       {!booted && <BootSequence onDone={() => setBooted(true)} />}
+
+      {/* Viewport landscape auto-rotation style */}
+      <style>{`
+        @media (orientation: portrait) {
+          .mobile-landscape-mode {
+            position: fixed !important;
+            top: 50% !important;
+            left: 50% !important;
+            width: 100vh !important;
+            height: 100vw !important;
+            transform: translate(-50%, -50%) rotate(90deg) !important;
+            transform-origin: center center !important;
+            overflow: hidden !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }

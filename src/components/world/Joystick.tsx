@@ -48,8 +48,17 @@ export function Joystick({ onMove, onJump, onInteract }: JoystickProps) {
       }
       if (clientX === null || clientY === null) return;
 
-      const dx = clientX - cx;
-      const dy = clientY - cy;
+      let dx = clientX - cx;
+      let dy = clientY - cy;
+
+      // Remap touch coordinates to landscape if the screen is physically in portrait
+      const isPortrait = window.innerHeight > window.innerWidth;
+      if (isPortrait) {
+        const temp = dx;
+        dx = -dy;
+        dy = temp;
+      }
+
       const maxR = rect.width / 2 - 18;
       const dist = Math.hypot(dx, dy);
       const clamped = Math.min(dist, maxR);
