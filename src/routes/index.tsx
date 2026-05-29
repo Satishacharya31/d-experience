@@ -11,6 +11,7 @@ import { LevelUpOverlay } from "@/components/lab/LevelUpOverlay";
 import type { ZoneId } from "@/components/world/Buildings";
 import { gameStore } from "@/lib/gameStore";
 import { audio } from "@/lib/audio";
+import { OrientationPrompt } from "@/components/ui/OrientationPrompt";
 
 const VoxelWorld = lazy(() =>
   import("@/components/world/VoxelWorld").then((m) => ({ default: m.VoxelWorld })),
@@ -67,6 +68,22 @@ function Index() {
   const [levelUpQueue, setLevelUpQueue] = useState<number[]>([]);
   const interactRef = useRef(false);
 
+  const handleToggleCli = useCallback(() => {
+    setCliOpen((v) => {
+      if (!v) {
+        // Quest: open CLI
+        const result = gameStore.completeQuest("open_cli");
+        if (result.levelUp) {
+          setLevelUpQueue((q) => [...q, result.newLevel]);
+          audio.levelUp();
+        } else if (result.didComplete) {
+          audio.questComplete();
+        }
+      }
+      return !v;
+    });
+  }, []);
+
   useEffect(() => setMounted(true), []);
 
   // Sync audio mute state from store
@@ -83,19 +100,7 @@ function Index() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "`" || e.code === "Backquote") {
         e.preventDefault();
-        setCliOpen((v) => {
-          if (!v) {
-            // Quest: open CLI
-            const result = gameStore.completeQuest("open_cli");
-            if (result.levelUp) {
-              setLevelUpQueue((q) => [...q, result.newLevel]);
-              audio.levelUp();
-            } else if (result.didComplete) {
-              audio.questComplete();
-            }
-          }
-          return !v;
-        });
+        handleToggleCli();
       } else if ((e.key === "e" || e.key === "E") && !openZone) {
         interactRef.current = true;
       } else if (e.key === "q" || e.key === "Q") {
@@ -108,7 +113,7 @@ function Index() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openZone, cliOpen]);
+  }, [openZone, cliOpen, handleToggleCli]);
 
   // Zone enter event → open panel, complete quest
   useEffect(() => {
@@ -151,11 +156,12 @@ function Index() {
       )}
 
       <HUD />
-      <WorldHUD zone={zone} cliOpen={cliOpen} />
+      <WorldHUD zone={zone} cliOpen={cliOpen} onToggleCli={handleToggleCli} />
       {mounted && <QuestTracker />}
       {mounted && cliOpen && <CLI />}
       {openZone && <ZonePanel zone={openZone} onClose={() => setOpenZone(null)} />}
       {mounted && <Cursor />}
+      {mounted && <OrientationPrompt />}
 
       {/* Level-up cinematic (show one at a time from queue) */}
       {currentLevelUp !== null && (

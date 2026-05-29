@@ -77,7 +77,7 @@ function Player({
 
     // Touch joystick
     if (touchJoy.current.x !== 0 || touchJoy.current.y !== 0) {
-      inputForward = touchJoy.current.y;
+      inputForward = -touchJoy.current.y;
       inputTurn = touchJoy.current.x;
     }
 

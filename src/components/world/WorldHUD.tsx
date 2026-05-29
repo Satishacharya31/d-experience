@@ -1,11 +1,32 @@
 import type { ZoneId } from "./Buildings";
 
-export function WorldHUD({ zone, cliOpen }: { zone: ZoneId | null; cliOpen: boolean }) {
+export function WorldHUD({
+  zone,
+  cliOpen,
+  onToggleCli,
+}: {
+  zone: ZoneId | null;
+  cliOpen: boolean;
+  onToggleCli?: () => void;
+}) {
   return (
     <>
       {/* CLI hint key bottom-left corner stacked cleanly above brand */}
-      <div className="fixed bottom-14 left-4 md:left-6 z-20 pointer-events-none text-[10px] md:text-xs font-mono text-terminal-dim">
-        <Key k="`" label={cliOpen ? "close cli" : "open cli"} />
+      <div className="fixed bottom-14 left-4 md:left-6 z-30 pointer-events-none text-[10px] md:text-xs font-mono">
+        <button
+          onClick={onToggleCli}
+          onTouchStart={(e) => {
+            e.preventDefault();
+            onToggleCli?.();
+          }}
+          className="pointer-events-auto cursor-pointer flex items-center gap-1.5 px-2.5 py-1.5 border border-primary/20 bg-background/35 backdrop-blur-sm rounded hover:border-primary/50 hover:bg-background/60 active:scale-95 transition-all text-primary/75 outline-none select-none"
+          style={{
+            boxShadow: "0 0 10px rgba(0, 255, 136, 0.05)",
+          }}
+        >
+          <span className="border border-primary/40 px-1.5 py-0.5 text-primary rounded bg-primary/10 font-bold font-mono">`</span>
+          <span className="tracking-wider uppercase font-semibold text-[9px] md:text-[10px]">{cliOpen ? "close_cli" : "open_cli"}</span>
+        </button>
       </div>
 
       {/* zone prompt center-bottom-ish */}
@@ -18,14 +39,5 @@ export function WorldHUD({ zone, cliOpen }: { zone: ZoneId | null; cliOpen: bool
         </div>
       )}
     </>
-  );
-}
-
-function Key({ k, label }: { k: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className="border border-primary/50 px-1.5 py-0.5 text-primary">{k}</span>
-      <span>{label}</span>
-    </span>
   );
 }
