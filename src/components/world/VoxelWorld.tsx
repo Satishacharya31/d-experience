@@ -481,7 +481,7 @@ export function VoxelWorld({
 
   return (
     <>
-      <div className="fixed inset-0 z-0" style={{ cursor: "crosshair" }}>
+      <div className="absolute inset-0 z-0" style={{ cursor: "crosshair" }}>
         <Canvas shadows camera={{ position: [0, 6, 10], fov: 60 }} dpr={[1, 2]}>
           <color attach="background" args={["#04070a"]} />
           <fog attach="fog" args={["#0c1a14", 60, 200]} />

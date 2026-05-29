@@ -71,9 +71,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { name: "theme-color", content: "#0a0f0a" },
+      // Maximize screen usage: cover safe area, suppress browser chrome resize
+      { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" },
+      { name: "theme-color", content: "#04070a" },
+      { name: "background-color", content: "#04070a" },
       { name: "author", content: "Satish" },
+      // PWA / standalone fullscreen for iOS (hides Safari browser bar when added to Home Screen)
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "THE_LAB" },
+      // Android Chrome standalone / TWA
+      { name: "mobile-web-app-capable", content: "yes" },
       { property: "og:site_name", content: "satish.com.np // THE_LAB" },
       { property: "og:type", content: "website" },
       { property: "og:locale", content: "en_US" },
